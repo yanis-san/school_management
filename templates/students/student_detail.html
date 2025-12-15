@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}Profil : {{ student.first_name }} {{ student.last_name }}{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <div class="flex items-center gap-4">
+        <a href="{% url 'students:list' %}" class="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition">
+            ⬅ Retour
+        </a>
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">{{ student.last_name }} {{ student.first_name }}</h1>
+            <span class="text-sm text-gray-500">Étudiant #{{ student.student_code }}</span>
+        </div>
+        <div class="ml-auto flex gap-2">
+            <button class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition">
+                🖊️ Modifier Infos
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="font-bold text-gray-800 mb-4 border-b pb-2">Coordonnées</h3>
+                <div class="space-y-3 text-sm">
+                    <div>
+                        <span class="block text-gray-500 text-xs uppercase">Téléphone</span>
+                        <span class="font-medium text-gray-800">{{ student.phone }}</span>
+                    </div>
+                    <div>
+                        <span class="block text-gray-500 text-xs uppercase">Email</span>
+                        <span class="font-medium text-gray-800">{{ student.email|default:"Non renseigné" }}</span>
+                    </div>
+                    <div>
+                        <span class="block text-gray-500 text-xs uppercase">Inscrit le</span>
+                        <span class="font-medium text-gray-800">{{ student.created_at|date:"d M Y" }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 space-y-6">
+            
+            {% for enrollment in enrollments %}
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div class="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-start">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-lg text-indigo-900">{{ enrollment.cohort.name }}</h3>
+                            <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">
+                                {{ enrollment.cohort.subject.name }}
+                            </span>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-1">
+                            Prof: {{ enrollment.cohort.teacher.first_name }} • {{ enrollment.cohort.schedule_details|default:"Horaires non définis" }}
+                        </p>
+                    </div>
+                    
+                    <div class="text-right">
+                        {% if enrollment.balance_due > 0 %}
+                            <span class="block text-2xl font-bold text-red-600">-{{ enrollment.balance_due }} DA</span>
+                            <span class="text-xs text-red-400 font-medium">Reste à payer</span>
+                        {% else %}
+                            <span class="block text-2xl font-bold text-green-600">Soldé</span>
+                            <span class="text-xs text-green-500">Tout est payé</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <div>
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Détails du Tarif</h4>
+                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                            <span class="text-gray-600">{{ enrollment.tariff.name }}</span>
+                            <span class="font-medium">{{ enrollment.tariff.amount }} DA</span>
+                        </div>
+                        <div class="flex justify-between items-center py-2 font-bold text-gray-800 mt-2">
+                            <span>Total Dû</span>
+                            <span>{{ enrollment.tariff.amount }} DA</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Historique Paiements</h4>
+                        
+                        <ul class="space-y-2 mb-4">
+                            {% for payment in enrollment.payments.all %}
+                                <li class="flex justify-between text-sm">
+                                    <span class="text-gray-600">{{ payment.date|date:"d/m" }} ({{ payment.get_method_display }})</span>
+                                    <span class="font-medium text-green-600">+{{ payment.amount }} DA</span>
+                                </li>
+                            {% empty %}
+                                <li class="text-sm text-gray-400 italic">Aucun paiement reçu.</li>
+                            {% endfor %}
+                        </ul>
+
+                        {% if enrollment.balance_due > 0 %}
+                            <a href="{% url 'finance:add_payment' enrollment.id %}" class="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex justify-center items-center gap-2 shadow-sm text-center">
+                                <span>💵</span> Encaisser un paiement
+                            </a>
+                        {% else %}
+                            <button disabled class="w-full py-2 px-4 bg-gray-200 text-gray-400 rounded-lg font-medium cursor-not-allowed">
+                                Contrat Soldé
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-8 text-center bg-gray-50 rounded-xl">
+                Cet étudiant n'est inscrit à aucun cours pour le moment.
+            </div>
+            {% endfor %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}

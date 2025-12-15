@@ -1,0 +1,107 @@
+<div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" id="enrollment-modal">
+    <div class="relative top-10 mx-auto p-5 border w-full max-w-4xl shadow-lg rounded-md bg-white">
+        
+        <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-bold text-gray-900">Nouvelle Inscription</h3>
+            <button onclick="document.getElementById('enrollment-modal').remove()" class="text-gray-500 hover:text-red-500 text-2xl">&times;</button>
+        </div>
+
+        <form hx-post="{% url 'create_enrollment' %}" hx-target="body" hx-swap="beforeend">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div class="bg-blue-50 p-4 rounded-lg">
+                    <h4 class="font-bold text-blue-700 mb-3">👤 Informations Élève</h4>
+                    
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Nom *</label>
+                            <input type="text" name="last_name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Prénom *</label>
+                            <input type="text" name="first_name" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Email *</label>
+                        <input type="email" name="email" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight">
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Téléphone *</label>
+                            <input type="text" name="phone" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight">
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Autre Tél</label>
+                            <input type="text" name="phone_2" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="block text-gray-700 text-sm font-bold mb-2">Pourquoi nous rejoindre ?</label>
+                        <textarea name="motivation" rows="2" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight" placeholder="Ex: Préparation voyage, Passion manga..."></textarea>
+                    </div>
+                </div>
+
+                <div class="bg-green-50 p-4 rounded-lg flex flex-col justify-between">
+                    <div>
+                        <h4 class="font-bold text-green-700 mb-3">📚 Cours & Tarif</h4>
+                        
+                        <div class="mb-3">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Choisir le Groupe *</label>
+                            <select name="cohort_id" required class="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white focus:outline-none">
+                                {% for cohort in cohorts %}
+                                    <option value="{{ cohort.id }}">
+                                        {{ cohort.name }} (Standard: {{ cohort.standard_price }} DA)
+                                    </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Réduction / Promo</label>
+                            <select name="discount_id" class="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white focus:outline-none">
+                                <option value="">-- Aucune (Prix Standard) --</option>
+                                {% for discount in discounts %}
+                                    <option value="{{ discount.id }}">{{ discount.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Laissez vide pour appliquer le tarif standard du groupe.</p>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="block text-gray-700 text-sm font-bold mb-2">Mode de Paiement *</label>
+                            <select name="payment_plan" class="shadow border rounded w-full py-2 px-3 text-gray-700 bg-white focus:outline-none">
+                                <option value="FULL">Totalité (Une fois)</option>
+                                <option value="MONTHLY">Mensuel (Par tranches)</option>
+                                <option value="PACK">Pack d'Heures</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 p-3 bg-white rounded border border-gray-200">
+                        <label class="flex items-center space-x-3">
+                            <input type="checkbox" name="terms_accepted" required class="form-checkbox h-5 w-5 text-blue-600">
+                            <span class="text-sm text-gray-700">
+                                J'accepte les <a href="#" class="text-blue-600 underline">règles intérieures</a> de l'école.
+                            </span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3 border-t pt-4">
+                <button type="button" onclick="document.getElementById('enrollment-modal').remove()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">
+                    Annuler
+                </button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-lg transform transition hover:scale-105">
+                    ✅ Valider l'Inscription
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

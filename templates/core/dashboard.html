@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <div class="flex justify-between items-end mb-8">
+        <div>
+            <h2 class="text-3xl font-bold text-gray-800">Bienvenue, {{ request.user.first_name }} 👋</h2>
+            <p class="text-gray-500 mt-1">Voici ce qui se passe à l'école ce {{ today|date:"l d F Y" }}</p>
+        </div>
+<button 
+    hx-get="{% url 'create_enrollment' %}" 
+    hx-target="body" 
+    hx-swap="beforeend"
+    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg shadow font-medium transition">
+    + Nouvelle Inscription
+</button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-4 bg-blue-50 text-blue-600 rounded-lg text-2xl">👥</div>
+            <div>
+                <p class="text-sm text-gray-500 font-medium">Étudiants Actifs</p>
+                <h3 class="text-2xl font-bold text-gray-800">{{ total_students }}</h3>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-4 bg-green-50 text-green-600 rounded-lg text-2xl">💵</div>
+            <div>
+                <p class="text-sm text-gray-500 font-medium">Revenus (Ce mois)</p>
+                <h3 class="text-2xl font-bold text-gray-800">{{ monthly_income }} <span class="text-sm text-gray-400">DZD</span></h3>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
+            <div class="p-4 bg-purple-50 text-purple-600 rounded-lg text-2xl">📚</div>
+            <div>
+                <p class="text-sm text-gray-500 font-medium">Cours Aujourd'hui</p>
+                <h3 class="text-2xl font-bold text-gray-800">{{ sessions.count }}</h3>
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <h3 class="font-bold text-gray-700">📅 Planning du Jour</h3>
+        </div>
+
+        <table class="w-full text-left">
+            <thead>
+                <tr class="text-gray-400 text-xs uppercase bg-gray-50 border-b border-gray-100">
+                    <th class="px-6 py-3 font-semibold">Heure</th>
+                    <th class="px-6 py-3 font-semibold">Groupe / Niveau</th>
+                    <th class="px-6 py-3 font-semibold">Salle</th>
+                    <th class="px-6 py-3 font-semibold">Professeur</th>
+                    <th class="px-6 py-3 font-semibold text-center">Statut</th>
+                    <th class="px-6 py-3 font-semibold text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for session in sessions %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4 font-bold text-gray-700 whitespace-nowrap">
+                        {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="font-semibold text-gray-800">{{ session.cohort.name }}</div>
+                        <div class="text-xs text-gray-500">{{ session.cohort.subject.name }}</div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="inline-block px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                            {{ session.classroom.name }}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-600">
+                        {{ session.teacher.first_name }} {{ session.teacher.last_name }}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% if session.status == 'SCHEDULED' %}
+                            <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Prévu</span>
+                        {% elif session.status == 'COMPLETED' %}
+                            <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">Terminé</span>
+                        {% elif session.status == 'CANCELLED' %}
+                            <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">Annulé</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <button class="text-blue-600 hover:text-blue-800 font-medium text-sm">
+                            Faire l'appel &rarr;
+                        </button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">
+                        Aucun cours prévu pour aujourd'hui.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}
