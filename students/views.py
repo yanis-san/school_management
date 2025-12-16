@@ -20,6 +20,7 @@ def create_enrollment(request):
             phone = request.POST.get('phone')
             
             # 1. Mise à jour ou Création de l'élève (Avec Motivation & Email)
+            birth_date = request.POST.get('birth_date') or None
             student, created = Student.objects.update_or_create(
                 phone=phone,
                 defaults={
@@ -27,9 +28,10 @@ def create_enrollment(request):
                     'last_name': request.POST.get('last_name'),
                     'email': request.POST.get('email'),
                     'phone_2': request.POST.get('phone_2', ''),
+                    'birth_date': birth_date,
                     'motivation': request.POST.get('motivation', ''),
                     # Code étudiant généré basiquement si pas existant
-                    'student_code': f"ST-{phone[-4:]}" 
+                    'student_code': f"ST-{phone[-4:]}"
                 }
             )
 

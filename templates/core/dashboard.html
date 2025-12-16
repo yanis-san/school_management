@@ -1,98 +1,237 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <div class="flex justify-between items-end mb-8">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-end mb-6 sm:mb-8 gap-4">
         <div>
-            <h2 class="text-3xl font-bold text-gray-800">Bienvenue, {{ request.user.first_name }} 👋</h2>
-            <p class="text-gray-500 mt-1">Voici ce qui se passe à l'école ce {{ today|date:"l d F Y" }}</p>
+            <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">
+                Bienvenue, {{ request.user.first_name }}
+                {% if is_teacher %}<span class="text-lg sm:text-2xl">(Professeur)</span>{% endif %}
+            </h2>
+            <p class="text-sm sm:text-base text-gray-500 mt-1">
+                {% if is_teacher %}
+                    Vos cours du {{ today|date:"l d F Y" }}
+                {% else %}
+                    Voici ce qui se passe à l'école ce {{ today|date:"l d F Y" }}
+                {% endif %}
+            </p>
         </div>
-<button 
-    hx-get="{% url 'create_enrollment' %}" 
-    hx-target="body" 
-    hx-swap="beforeend"
-    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg shadow font-medium transition">
-    + Nouvelle Inscription
-</button>
+        {% if not is_teacher %}
+        <button
+            hx-get="{% url 'create_enrollment' %}"
+            hx-target="body"
+            hx-swap="beforeend"
+            class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg shadow font-medium transition text-sm sm:text-base">
+            + Nouvelle Inscription
+        </button>
+        {% endif %}
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div class="p-4 bg-blue-50 text-blue-600 rounded-lg text-2xl">👥</div>
+    {% if is_teacher %}
+    <!-- STATISTIQUES PROFESSEUR -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-10">
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4">
+            <div class="p-3 sm:p-4 bg-blue-50 text-blue-600 rounded-lg text-xl sm:text-2xl">👥</div>
             <div>
-                <p class="text-sm text-gray-500 font-medium">Étudiants Actifs</p>
-                <h3 class="text-2xl font-bold text-gray-800">{{ total_students }}</h3>
+                <p class="text-xs sm:text-sm text-gray-500 font-medium">Mes Étudiants</p>
+                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">{{ total_students }}</h3>
             </div>
         </div>
 
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div class="p-4 bg-green-50 text-green-600 rounded-lg text-2xl">💵</div>
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4">
+            <div class="p-3 sm:p-4 bg-purple-50 text-purple-600 rounded-lg text-xl sm:text-2xl">📚</div>
             <div>
-                <p class="text-sm text-gray-500 font-medium">Revenus (Ce mois)</p>
-                <h3 class="text-2xl font-bold text-gray-800">{{ monthly_income }} <span class="text-sm text-gray-400">DZD</span></h3>
+                <p class="text-xs sm:text-sm text-gray-500 font-medium">Mes Classes</p>
+                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">{{ my_cohorts.count }}</h3>
             </div>
         </div>
 
-        <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4">
-            <div class="p-4 bg-purple-50 text-purple-600 rounded-lg text-2xl">📚</div>
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4">
+            <div class="p-3 sm:p-4 bg-green-50 text-green-600 rounded-lg text-xl sm:text-2xl">✅</div>
             <div>
-                <p class="text-sm text-gray-500 font-medium">Cours Aujourd'hui</p>
-                <h3 class="text-2xl font-bold text-gray-800">{{ sessions.count }}</h3>
+                <p class="text-xs sm:text-sm text-gray-500 font-medium">Cours donnés (ce mois)</p>
+                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">{{ completed_this_month }}</h3>
             </div>
         </div>
     </div>
+
+    <!-- MES CLASSES -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6 sm:mb-10">
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <h3 class="font-bold text-gray-700 text-sm sm:text-base">Mes Classes</h3>
+        </div>
+        <div class="p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
+            {% for cohort in my_cohorts %}
+            <div class="border border-gray-200 rounded-lg p-3 sm:p-4 hover:border-indigo-300 hover:bg-indigo-50 transition">
+                <h4 class="font-bold text-gray-800 text-sm sm:text-base">{{ cohort.name }}</h4>
+                <p class="text-xs sm:text-sm text-gray-600 mt-1">{{ cohort.subject }} - {{ cohort.level }}</p>
+                <p class="text-xs text-gray-500 mt-2">
+                    {{ cohort.enrollments.count }} étudiant(s)
+                </p>
+                <a href="{% url 'academics:detail' cohort.id %}"
+                   class="mt-2 sm:mt-3 inline-block text-indigo-600 hover:text-indigo-800 font-medium text-xs sm:text-sm">
+                    Voir le planning →
+                </a>
+            </div>
+            {% empty %}
+            <p class="text-gray-400 italic col-span-1 lg:col-span-2 text-sm">Aucune classe assignée</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <!-- STATISTIQUES ADMIN -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-10">
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4">
+            <div class="p-3 sm:p-4 bg-blue-50 text-blue-600 rounded-lg text-xl sm:text-2xl">👥</div>
+            <div>
+                <p class="text-xs sm:text-sm text-gray-500 font-medium">Étudiants Actifs</p>
+                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">{{ total_students }}</h3>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4">
+            <div class="p-3 sm:p-4 bg-green-50 text-green-600 rounded-lg text-xl sm:text-2xl">💵</div>
+            <div>
+                <p class="text-xs sm:text-sm text-gray-500 font-medium">Revenus (Ce mois)</p>
+                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">{{ monthly_income }} <span class="text-xs sm:text-sm text-gray-400">DZD</span></h3>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 sm:gap-4">
+            <div class="p-3 sm:p-4 bg-purple-50 text-purple-600 rounded-lg text-xl sm:text-2xl">📚</div>
+            <div>
+                <p class="text-xs sm:text-sm text-gray-500 font-medium">Cours Aujourd'hui</p>
+                <h3 class="text-xl sm:text-2xl font-bold text-gray-800">{{ sessions.count }}</h3>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-            <h3 class="font-bold text-gray-700">📅 Planning du Jour</h3>
+        <div class="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <h3 class="font-bold text-gray-700 text-sm sm:text-base">📅 Planning du Jour</h3>
         </div>
 
-        <table class="w-full text-left">
+        <!-- Version mobile (format carte) -->
+        <div class="md:hidden divide-y divide-gray-100">
+            {% for session in sessions %}
+            <div class="p-4 hover:bg-gray-50 transition">
+                <div class="flex justify-between items-start mb-2">
+                    <div>
+                        <div class="font-bold text-gray-700 text-sm">
+                            {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
+                        </div>
+                        <div class="font-semibold text-gray-800 mt-1">{{ session.cohort.name }}</div>
+                        <div class="text-xs text-gray-500">{{ session.cohort.subject.name }}</div>
+                    </div>
+                    {% if session.status == 'SCHEDULED' %}
+                        <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Prévu</span>
+                    {% elif session.status == 'COMPLETED' %}
+                        <span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">Terminé</span>
+                    {% elif session.status == 'CANCELLED' %}
+                        <span class="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">Annulé</span>
+                    {% endif %}
+                </div>
+                <div class="flex items-center justify-between mt-3">
+                    <div class="flex items-center gap-3 text-xs">
+                        <span class="inline-block px-2 py-1 bg-gray-100 text-gray-600 rounded font-medium">
+                            {{ session.classroom.name }}
+                        </span>
+                        <div class="flex items-center gap-1.5">
+                            {% if session.teacher.profile_picture %}
+                                <img src="{{ session.teacher.profile_picture.url }}"
+                                     alt="{{ session.teacher.get_full_name }}"
+                                     class="w-6 h-6 rounded-full object-cover border border-gray-200">
+                            {% else %}
+                                <div class="w-6 h-6 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                    {{ session.teacher.first_name|slice:":1" }}{{ session.teacher.last_name|slice:":1" }}
+                                </div>
+                            {% endif %}
+                            <span class="text-gray-600">
+                                {{ session.teacher.first_name }} {{ session.teacher.last_name }}
+                            </span>
+                        </div>
+                    </div>
+                    {% if session.status == 'SCHEDULED' %}
+                        <a href="{% url 'academics:session_detail' session.id %}"
+                           class="text-indigo-600 hover:text-indigo-900 font-medium text-xs border border-indigo-200 hover:border-indigo-600 px-2 py-1 rounded transition">
+                            Appel
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% empty %}
+            <div class="p-8 text-center text-gray-400 italic text-sm">
+                Aucun cours prévu pour aujourd'hui.
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Version desktop (tableau) -->
+        <table class="hidden md:table w-full text-left">
             <thead>
                 <tr class="text-gray-400 text-xs uppercase bg-gray-50 border-b border-gray-100">
-                    <th class="px-6 py-3 font-semibold">Heure</th>
-                    <th class="px-6 py-3 font-semibold">Groupe / Niveau</th>
-                    <th class="px-6 py-3 font-semibold">Salle</th>
-                    <th class="px-6 py-3 font-semibold">Professeur</th>
-                    <th class="px-6 py-3 font-semibold text-center">Statut</th>
-                    <th class="px-6 py-3 font-semibold text-right">Action</th>
+                    <th class="px-4 lg:px-6 py-3 font-semibold">Heure</th>
+                    <th class="px-4 lg:px-6 py-3 font-semibold">Groupe / Niveau</th>
+                    <th class="px-4 lg:px-6 py-3 font-semibold">Salle</th>
+                    <th class="px-4 lg:px-6 py-3 font-semibold">Professeur</th>
+                    <th class="px-4 lg:px-6 py-3 font-semibold text-center">Statut</th>
+                    <th class="px-4 lg:px-6 py-3 font-semibold text-right">Action</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
                 {% for session in sessions %}
                 <tr class="hover:bg-gray-50 transition">
-                    <td class="px-6 py-4 font-bold text-gray-700 whitespace-nowrap">
+                    <td class="px-4 lg:px-6 py-3 lg:py-4 font-bold text-gray-700 whitespace-nowrap text-sm">
                         {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
                     </td>
-                    <td class="px-6 py-4">
-                        <div class="font-semibold text-gray-800">{{ session.cohort.name }}</div>
+                    <td class="px-4 lg:px-6 py-3 lg:py-4">
+                        <div class="font-semibold text-gray-800 text-sm">{{ session.cohort.name }}</div>
                         <div class="text-xs text-gray-500">{{ session.cohort.subject.name }}</div>
                     </td>
-                    <td class="px-6 py-4">
+                    <td class="px-4 lg:px-6 py-3 lg:py-4">
                         <span class="inline-block px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
                             {{ session.classroom.name }}
                         </span>
                     </td>
-                    <td class="px-6 py-4 text-sm text-gray-600">
-                        {{ session.teacher.first_name }} {{ session.teacher.last_name }}
+                    <td class="px-4 lg:px-6 py-3 lg:py-4">
+                        <div class="flex items-center gap-2">
+                            {% if session.teacher.profile_picture %}
+                                <img src="{{ session.teacher.profile_picture.url }}"
+                                     alt="{{ session.teacher.get_full_name }}"
+                                     class="w-7 h-7 lg:w-8 lg:h-8 rounded-full object-cover border border-gray-200">
+                            {% else %}
+                                <div class="w-7 h-7 lg:w-8 lg:h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                    {{ session.teacher.first_name|slice:":1" }}{{ session.teacher.last_name|slice:":1" }}
+                                </div>
+                            {% endif %}
+                            <span class="text-xs lg:text-sm text-gray-600">
+                                {{ session.teacher.first_name }} {{ session.teacher.last_name }}
+                            </span>
+                        </div>
                     </td>
-                    <td class="px-6 py-4 text-center">
+                    <td class="px-4 lg:px-6 py-3 lg:py-4 text-center">
                         {% if session.status == 'SCHEDULED' %}
-                            <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Prévu</span>
+                            <span class="px-2 lg:px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">Prévu</span>
                         {% elif session.status == 'COMPLETED' %}
-                            <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">Terminé</span>
+                            <span class="px-2 lg:px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">Terminé</span>
                         {% elif session.status == 'CANCELLED' %}
-                            <span class="px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">Annulé</span>
+                            <span class="px-2 lg:px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">Annulé</span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 text-right">
-                        <button class="text-blue-600 hover:text-blue-800 font-medium text-sm">
-                            Faire l'appel &rarr;
-                        </button>
+                    <td class="px-4 lg:px-6 py-3 lg:py-4 text-right">
+                        {% if session.status == 'SCHEDULED' %}
+                            <a href="{% url 'academics:session_detail' session.id %}"
+                               class="text-indigo-600 hover:text-indigo-900 font-medium text-xs lg:text-sm border border-indigo-200 hover:border-indigo-600 px-2 lg:px-3 py-1 rounded-lg transition">
+                                Appel
+                            </a>
+                        {% elif session.status == 'COMPLETED' %}
+                            <span class="text-gray-400 text-xs">Terminé</span>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="6" class="px-6 py-12 text-center text-gray-400 italic">
+                    <td colspan="6" class="px-4 lg:px-6 py-8 lg:py-12 text-center text-gray-400 italic text-sm">
                         Aucun cours prévu pour aujourd'hui.
                     </td>
                 </tr>

@@ -14,11 +14,28 @@ class Student(models.Model):
     motivation = models.TextField(blank=True, verbose_name="Pourquoi ?")
     # Code étudiant unique (généré auto ou manuel)
     student_code = models.CharField(max_length=20, unique=True, blank=True)
-    
+    profile_picture = models.ImageField(
+        upload_to='profiles/students/',
+        blank=True,
+        null=True,
+        verbose_name="Photo de profil"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.last_name} {self.first_name}"
+        return f"{self.last_name.upper()} {self.first_name}"
+
+    @property
+    def age(self):
+        """Calcule l'âge à partir de la date de naissance"""
+        if not self.birth_date:
+            return None
+        from datetime import date
+        today = date.today()
+        return today.year - self.birth_date.year - (
+            (today.month, today.day) < (self.birth_date.month, self.birth_date.day)
+        )
 
 class Enrollment(models.Model):
     """
