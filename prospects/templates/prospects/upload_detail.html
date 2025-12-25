@@ -43,31 +43,37 @@
     </div>
   </div>
 
-  <!-- Prospects Créés -->
+  <!-- Prospects Créés - Dépliable -->
   {% if upload.created_list %}
   <div class="bg-white rounded-lg shadow p-6 mb-6">
-    <h2 class="text-2xl font-bold text-green-900 mb-4">
-      ✅ Prospects créés ({{ upload.created_count }})
-    </h2>
-    <div class="space-y-3">
-      {% for item in upload.created_list %}
-      <div class="bg-green-50 border border-green-200 rounded-lg p-4">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="font-semibold text-green-900">
-              Ligne {{ item.row }}: {{ item.name }}
+    <button type="button" onclick="toggleSection('created')" class="w-full text-left flex items-center gap-2 hover:bg-green-50 p-2 rounded -m-2 mb-2">
+      <span class="text-green-600 font-bold text-xl" id="createdArrow">▶</span>
+      <h2 class="text-2xl font-bold text-green-900 flex-1">
+        ✅ Prospects créés ({{ upload.created_count }})
+      </h2>
+    </button>
+
+    <div id="createdSection" class="hidden">
+      <div class="space-y-3">
+        {% for item in upload.created_list %}
+        <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-green-900">
+                Ligne {{ item.row }}: {{ item.name }}
+              </div>
+              {% if item.email %}
+              <div class="text-sm text-green-700 mt-1">📧 {{ item.email }}</div>
+              {% endif %}
             </div>
-            {% if item.email %}
-            <div class="text-sm text-green-700 mt-1">📧 {{ item.email }}</div>
-            {% endif %}
-          </div>
-          <div class="text-sm text-green-600 text-right">
-            <div class="font-medium">{{ item.reason }}</div>
-            <div class="text-xs text-green-500">ID: {{ item.prospect_id }}</div>
+            <div class="text-sm text-green-600 text-right">
+              <div class="font-medium">{{ item.reason }}</div>
+              <div class="text-xs text-green-500">ID: {{ item.prospect_id }}</div>
+            </div>
           </div>
         </div>
+        {% endfor %}
       </div>
-      {% endfor %}
     </div>
   </div>
   {% endif %}
