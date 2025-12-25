@@ -42,6 +42,23 @@
             if (e.key === 'Escape' && document.activeElement.tagName === 'INPUT') {
                 document.activeElement.blur();
             }
+
+            // Raccourcis Alt+[numéro] pour navigation sidebar (chiffres du haut du clavier)
+            if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                const shortcuts = {
+                    'Digit1': '{% url "dashboard" %}',
+                    'Digit2': '{% url "prospects:list" %}',
+                    'Digit3': '{% url "students:list" %}',
+                    'Digit4': '{% url "academics:list" %}',
+                    'Digit5': '{% url "cash:dashboard" %}',
+                    'Digit6': '{% url "finance:payment_status_dashboard" %}',
+                };
+                
+                if (shortcuts[e.code]) {
+                    e.preventDefault();
+                    window.location.href = shortcuts[e.code];
+                }
+            }
         });
     </script>
 
@@ -78,6 +95,7 @@
             <nav class="flex-1 p-4 space-y-2 mt-4 overflow-y-auto">
                 <a href="{% url 'dashboard' %}" class="flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-600 text-white shadow-md transition hover:bg-blue-700">
                     <span>📊</span> Tableau de bord
+                    <span class="ml-auto text-xs bg-blue-700 px-1.5 py-0.5 rounded font-mono">Alt+1</span>
                 </a>
 
                 {% if request.user.is_teacher %}
@@ -98,27 +116,32 @@
                     {# MENU ADMINISTRATEUR : Tout voir #}
                     <p class="px-4 mt-6 mb-2 text-xs font-semibold text-slate-400 uppercase">Gestion</p>
 
-                    <a href="{% url 'prospects:list' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <a href="{% url 'prospects:list' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group">
                         <span>🎯</span> Prospects
+                        <span class="ml-auto text-[10px] bg-slate-700 px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition">Alt+2</span>
                     </a>
                     <a href="{% url 'prospects:dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
                         <span>📊</span> Tableau Prospects
                     </a>
-                    <a href="{% url 'students:list' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <a href="{% url 'students:list' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group">
                         <span>🎓</span> Étudiants
+                        <span class="ml-auto text-[10px] bg-slate-700 px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition">Alt+3</span>
                     </a>
-                    <a href="{% url 'academics:list' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <a href="{% url 'academics:list' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group">
                         <span>📅</span> Groupes & Classes
+                        <span class="ml-auto text-[10px] bg-slate-700 px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition">Alt+4</span>
                     </a>
 
                     <p class="px-4 mt-6 mb-2 text-xs font-semibold text-slate-400 uppercase">Finances</p>
 
-                    <a href="{% url 'cash:dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <a href="{% url 'cash:dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group">
                         <span>💵</span> Caisse
+                        <span class="ml-auto text-[10px] bg-slate-700 px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition">Alt+5</span>
                     </a>
 
-                    <a href="{% url 'finance:payment_status_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
+                    <a href="{% url 'finance:payment_status_dashboard' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition group">
                         <span>💰</span> Suivi Paiements
+                        <span class="ml-auto text-[10px] bg-slate-700 px-1.5 py-0.5 rounded font-mono opacity-0 group-hover:opacity-100 transition">Alt+6</span>
                     </a>
 
                     <a href="{% url 'finance:teacher_cohort_payroll' %}" class="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition">
