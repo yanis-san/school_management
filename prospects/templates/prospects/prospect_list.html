@@ -46,7 +46,12 @@
   <div class="bg-white rounded-lg shadow mb-6">
     <form method="get" class="p-4 border-b border-slate-100">
       <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
-        <input name="q" value="{{ q }}" placeholder="Rechercher (nom, email, téléphone)" class="form-input px-3 py-2 rounded col-span-1 md:col-span-2" />
+        <input name="q" value="{{ q }}" placeholder="Rechercher (nom, email, téléphone)" 
+               class="form-input px-3 py-2 rounded col-span-1 md:col-span-2"
+               hx-get="{% url 'prospects:list' %}"
+               hx-trigger="keyup changed delay:500ms"
+               hx-target="#prospects-tbody"
+               hx-include="[name='converted'], [name='source'], [name='activity_type'], [name='level'], [name='start'], [name='end'], [name='per_page']" />
 
         <select name="converted" class="form-input px-3 py-2 rounded">
           <option value="" {% if not f_converted %}selected{% endif %}>Tous</option>
@@ -105,7 +110,7 @@
             <th class="px-4 py-2 text-left text-slate-600 text-sm">Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="prospects-tbody">
           {% for p in prospects %}
           <tr class="border-t">
             <td class="px-4 py-2">

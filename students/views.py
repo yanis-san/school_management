@@ -272,6 +272,12 @@ def student_list(request):
         'annual_fee_paid_ids': paid_ids,
         'current_academic_year': current_year,
     }
+    
+    # Si requête HTMX, renvoyer uniquement le template partiel
+    if request.headers.get('HX-Request'):
+        return render(request, 'students/_search_results_partial.html', context)
+    
+    # Sinon, renvoyer la page complète
     return render(request, 'students/student_list.html', context)
 
 

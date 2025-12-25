@@ -108,6 +108,12 @@ def prospect_list(request):
         'distinct_activities': distinct_activities,
         'per_page': per_page,
     }
+    
+    # Si requête HTMX, renvoyer uniquement le template partiel
+    if request.headers.get('HX-Request'):
+        return render(request, 'prospects/_search_results_partial.html', context)
+    
+    # Sinon, renvoyer la page complète
     return render(request, 'prospects/prospect_list.html', context)
 
 
