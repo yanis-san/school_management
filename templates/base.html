@@ -17,6 +17,24 @@
         document.body.addEventListener('htmx:configRequest', (event) => {
             event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
         });
+
+        // Raccourci clavier "/" pour focus sur la barre de recherche
+        document.addEventListener('keydown', function(e) {
+            // Si "/" est pressé et qu'on n'est pas dans un input/textarea
+            if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+                e.preventDefault();
+                // Chercher l'input de recherche (name="q")
+                const searchInput = document.querySelector('input[name="q"]');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select(); // Sélectionner le texte existant
+                }
+            }
+            // Échap pour défocus
+            if (e.key === 'Escape' && document.activeElement.tagName === 'INPUT') {
+                document.activeElement.blur();
+            }
+        });
     </script>
 
     <!-- Bouton menu hamburger (visible uniquement sur mobile) -->
