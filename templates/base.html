@@ -18,16 +18,24 @@
             event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}';
         });
 
-        // Raccourci clavier "/" pour focus sur la barre de recherche
+        // Raccourci clavier "/" ou "Ctrl+K" pour focus sur la barre de recherche
         document.addEventListener('keydown', function(e) {
-            // Si "/" est pressé et qu'on n'est pas dans un input/textarea
-            if (e.key === '/' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+            // Si "/" est pressé (sans modificateur) et qu'on n'est pas dans un input/textarea
+            if (e.key === '/' && !e.ctrlKey && !e.metaKey && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
                 e.preventDefault();
-                // Chercher l'input de recherche (name="q")
                 const searchInput = document.querySelector('input[name="q"]');
                 if (searchInput) {
                     searchInput.focus();
-                    searchInput.select(); // Sélectionner le texte existant
+                    searchInput.select();
+                }
+            }
+            // Si "Ctrl+K" (ou Cmd+K sur Mac) est pressé
+            if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                const searchInput = document.querySelector('input[name="q"]');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
                 }
             }
             // Échap pour défocus

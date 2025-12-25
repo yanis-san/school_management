@@ -48,12 +48,12 @@
       <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
         <div class="relative col-span-1 md:col-span-2">
           <input name="q" value="{{ q }}" placeholder="Rechercher (nom, email, téléphone)" 
-                 class="form-input px-3 py-2 pr-12 rounded w-full"
+                 class="form-input px-3 py-2 pr-16 rounded w-full"
                  hx-get="{% url 'prospects:list' %}"
                  hx-trigger="keyup changed delay:500ms"
                  hx-target="#prospects-tbody"
                  hx-include="[name='converted'], [name='source'], [name='activity_type'], [name='level'], [name='start'], [name='end'], [name='per_page']" />
-          <span class="absolute right-3 top-2.5 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-mono">/</span>
+          <span class="absolute right-3 top-2.5 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-mono">Ctrl+K</span>
         </div>
 
         <select name="converted" class="form-input px-3 py-2 rounded">

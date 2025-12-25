@@ -27,12 +27,12 @@
                 <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
                 <input type="text" name="q" value="{{ search_query }}" 
                        placeholder="Rechercher par nom, code, email..." 
-                       class="w-full pl-10 pr-16 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                       class="w-full pl-10 pr-20 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
                        hx-get="{% url 'students:list' %}"
                        hx-trigger="keyup changed delay:500ms"
                        hx-target="#students-tbody"
                        hx-include="[name='cohort']">
-                <span class="absolute right-3 top-2.5 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-mono">/</span>
+                <span class="absolute right-3 top-2.5 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-mono">Ctrl+K</span>
             </div>
 
             <div class="w-full md:w-64">
