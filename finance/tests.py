@@ -42,7 +42,7 @@ class FinanceAndTrackingTest(TestCase):
         
         # Vérif initiale
         self.assertEqual(enrollment.balance_due, 10000)
-        print("   ✅ Dette initiale : 10 000 DA")
+        print("   OK Dette initiale : 10 000 DA")
 
         # Action : Il paie 3000 DA
         Payment.objects.create(
@@ -51,18 +51,18 @@ class FinanceAndTrackingTest(TestCase):
 
         # Vérif après paiement
         self.assertEqual(enrollment.balance_due, 7000)
-        print("   ✅ Reste à payer correct : 7 000 DA")
+        print("   OK Reste a payer correct : 7 000 DA")
 
         # Action : Il solde tout
         Payment.objects.create(
             enrollment=enrollment, amount=7000, recorded_by=self.prof
         )
         self.assertEqual(enrollment.balance_due, 0)
-        print("   ✅ Dette soldée : 0 DA")
+        print("   OK Dette soldee : 0 DA")
 
     def test_02_pack_hours_consumption(self):
         """Test : Est-ce que les heures sont débitées quand le cours est fini ?"""
-        print("\n⏱️ Test 2: Consommation Pack d'Heures")
+        print("\n[TEST] Test 2: Consommation Pack d'Heures")
         
         # Inscription
         enrollment = Enrollment.objects.create(
@@ -88,7 +88,7 @@ class FinanceAndTrackingTest(TestCase):
         # Vérif après
         enrollment.refresh_from_db()
         self.assertEqual(enrollment.hours_consumed, 2.0)
-        print(f"   ✅ Heures consommées : {enrollment.hours_consumed}h (Attendu: 2.0h)")
+        print(f"   OK Heures consommees : {enrollment.hours_consumed}h (Attendu: 2.0h)")
 
     def test_03_installments_status(self):
         """Test : Est-ce qu'une échéance passe à 'Payé' ?"""
@@ -116,7 +116,7 @@ class FinanceAndTrackingTest(TestCase):
         installment.save()
 
         self.assertTrue(installment.is_paid)
-        print("   ✅ Échéance marquée comme payée")
+        print("   OK Echeance marquee comme payee")
 
 
 class TeacherPaymentTest(TestCase):
@@ -188,7 +188,7 @@ class TeacherPaymentTest(TestCase):
         self.assertEqual(payment.total_amount, 10000)
         self.assertEqual(payment.payment_method, 'CASH')
 
-        print(f"   ✅ Paiement créé: {payment.total_amount} DA pour {self.teacher.get_full_name()}")
+        print(f"   OK Paiement cree: {payment.total_amount} DA pour {self.teacher.get_full_name()}")
 
     def test_02_teacher_earned_amount_calculation(self):
         """Test le calcul du montant gagné par un professeur"""
@@ -217,7 +217,7 @@ class TeacherPaymentTest(TestCase):
 
         self.assertEqual(total_earned, expected_amount)
 
-        print(f"   ✅ Montant gagné calculé: {total_earned} DA pour 3 séances de 2h")
+        print(f"   OK Montant gagne calcule: {total_earned} DA pour 3 seances de 2h")
 
     def test_03_teacher_balance_due_after_payment(self):
         """Test le calcul du reste à payer après un paiement"""
@@ -257,7 +257,7 @@ class TeacherPaymentTest(TestCase):
 
         self.assertEqual(balance_due, 5800)  # 10,800 - 5,000
 
-        print(f"   ✅ Reste à payer: {balance_due} DA (gagné: {total_earned}, payé: {total_paid})")
+        print(f"   OK Reste a payer: {balance_due} DA (gagne: {total_earned}, paye: {total_paid})")
 
 
 class TeacherPayrollViewsTest(TestCase):
@@ -325,21 +325,32 @@ class TeacherPayrollViewsTest(TestCase):
         self.client = Client()
 
     def test_01_teacher_payroll_list_view(self):
-        """Test la vue liste de paie des professeurs"""
-        print("\n[TEST] Test 1: Vue liste de paie")
+        """Test la vue liste de paie par cohort (nouveau système)."""
+        print("\n[TEST] Test 1: Vue liste de paie (cohort)")
+
+        # Générer une séance complétée pour alimenter la paie
+        session = CourseSession.objects.create(
+            cohort=self.cohort1,
+            date=date(2024, 1, 8),
+            start_time=time(10, 0),
+            end_time=time(12, 0),
+            teacher=self.teacher1,
+            classroom=self.room,
+            status='COMPLETED'
+        )
 
         self.client.login(username='admin', password='test123')
         from django.urls import reverse
-        response = self.client.get(reverse('finance:teacher_payroll_list'))
+        response = self.client.get(reverse('finance:teacher_cohort_payroll'))
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('payroll_data', response.context)
 
-        # Les 2 professeurs devraient être listés
         payroll_data = response.context['payroll_data']
-        self.assertEqual(len(payroll_data), 2)
+        # Devrait contenir au moins la ligne du cohort1 pour teacher1
+        self.assertTrue(any(row['cohort'] == self.cohort1 and row['teacher'] == self.teacher1 for row in payroll_data))
 
-        print(f"   ✅ Liste de paie chargée avec {len(payroll_data)} professeurs")
+        print(f"   OK Liste de paie (cohort) chargee avec {len(payroll_data)} ligne(s)")
 
     def test_02_teacher_payroll_detail_view(self):
         """Test la vue de détail de paie d'un professeur"""
@@ -368,7 +379,7 @@ class TeacherPayrollViewsTest(TestCase):
         session_details = response.context['session_details']
         self.assertEqual(len(session_details), 2)
 
-        print(f"   ✅ Détail chargé avec {len(session_details)} séances complétées")
+        print(f"   OK Detail charge avec {len(session_details)} seances completees")
 
     def test_03_record_teacher_payment_view(self):
         """Test l'enregistrement d'un paiement professeur"""
@@ -411,11 +422,11 @@ class TeacherPayrollViewsTest(TestCase):
         self.assertEqual(payment.total_amount, 8000)
         self.assertEqual(payment.payment_method, 'TRANSFER')
 
-        print(f"   ✅ Paiement enregistré: {payment.total_amount} DA")
+        print(f"   OK Paiement enregistre: {payment.total_amount} DA")
 
     def test_04_teacher_profile_preferred_payment_method(self):
-        """Test l'affichage de la méthode de paiement préférée"""
-        print("\n[TEST] Test 4: Méthode de paiement préférée")
+        """Test l'affichage de la méthode de paiement préférée (cohort payroll)."""
+        print("\n[TEST] Test 4: Méthode de paiement préférée (cohort)")
 
         # Configurer la méthode préférée
         profile = self.teacher1.teacher_profile
@@ -423,16 +434,28 @@ class TeacherPayrollViewsTest(TestCase):
         profile.bank_details = "CCP 1234567"
         profile.save()
 
+        # Générer une séance complétée pour alimenter la ligne
+        CourseSession.objects.create(
+            cohort=self.cohort1,
+            date=date(2024, 1, 8),
+            start_time=time(10, 0),
+            end_time=time(12, 0),
+            teacher=self.teacher1,
+            classroom=self.room,
+            status='COMPLETED'
+        )
+
         self.client.login(username='admin', password='test123')
         from django.urls import reverse
-        response = self.client.get(reverse('finance:teacher_payroll_list'))
+        response = self.client.get(reverse('finance:teacher_cohort_payroll'))
 
         payroll_data = response.context['payroll_data']
 
-        # Trouver les données du teacher1
-        teacher1_data = next((d for d in payroll_data if d['teacher'] == self.teacher1), None)
+        # Trouver les données du teacher1 sur le cohort1
+        teacher1_data = next((d for d in payroll_data if d['teacher'] == self.teacher1 and d['cohort'] == self.cohort1), None)
 
         self.assertIsNotNone(teacher1_data)
-        self.assertEqual(teacher1_data['profile'].preferred_payment_method, 'TRANSFER')
+        self.assertIsNotNone(teacher1_data['teacher'].teacher_profile)
+        self.assertEqual(teacher1_data['teacher'].teacher_profile.preferred_payment_method, 'TRANSFER')
 
-        print(f"   ✅ Méthode préférée affichée: {teacher1_data['profile'].get_preferred_payment_method_display()}")
+        print(f"   OK Methode preferee affichee: {teacher1_data['teacher'].teacher_profile.get_preferred_payment_method_display()}")

@@ -29,8 +29,8 @@ class StudentModelTest(TestCase):
         self.assertEqual(self.student.phone, "0555123456")
         self.assertTrue(self.student.student_code)  # Code auto-généré
 
-        print(f"   ✅ Étudiant créé: {self.student.first_name} {self.student.last_name}")
-        print(f"   ✅ Code étudiant: {self.student.student_code}")
+        print(f"   OK Etudiant cree: {self.student.first_name} {self.student.last_name}")
+        print(f"   OK Code etudiant: {self.student.student_code}")
 
     def test_02_student_code_uniqueness(self):
         """Test l'unicité du code étudiant"""
@@ -43,7 +43,7 @@ class StudentModelTest(TestCase):
         # Les codes doivent être différents
         self.assertNotEqual(self.student.student_code, student2.student_code)
 
-        print(f"   ✅ Codes uniques: {self.student.student_code} != {student2.student_code}")
+        print(f"   OK Codes uniques: {self.student.student_code} != {student2.student_code}")
 
     def test_03_student_full_name(self):
         """Test la méthode __str__"""
@@ -52,7 +52,7 @@ class StudentModelTest(TestCase):
         expected = "DURAND Alice"
         self.assertEqual(str(self.student), expected)
 
-        print(f"   ✅ Représentation: {str(self.student)}")
+        print(f"   OK Representation: {str(self.student)}")
 
 
 class StudentProfilePictureTest(TestCase):
@@ -93,7 +93,7 @@ class StudentProfilePictureTest(TestCase):
         self.assertTrue(self.student.profile_picture)
         self.assertIn('profiles/students/', self.student.profile_picture.name)
 
-        print(f"   ✅ Photo uploadée: {self.student.profile_picture.name}")
+        print(f"   OK Photo uploadee: {self.student.profile_picture.name}")
 
 
 class EnrollmentTest(TestCase):
@@ -143,8 +143,8 @@ class EnrollmentTest(TestCase):
         self.assertEqual(enrollment.cohort, self.cohort)
         self.assertEqual(enrollment.balance_due, 8000)  # Montant initial du tarif
 
-        print(f"   ✅ Inscription créée pour {self.student} dans {self.cohort}")
-        print(f"   ✅ Montant dû: {enrollment.balance_due} DA")
+        print(f"   OK Inscription creee pour {self.student} dans {self.cohort}")
+        print(f"   OK Montant du: {enrollment.balance_due} DA")
 
     def test_02_enrollment_balance_after_payment(self):
         """Test le calcul du solde après paiement"""
@@ -168,7 +168,7 @@ class EnrollmentTest(TestCase):
         # Le solde devrait être 8000 - 3000 = 5000
         self.assertEqual(enrollment.balance_due, 5000)
 
-        print(f"   ✅ Après paiement de 3000 DA, reste: {enrollment.balance_due} DA")
+        print(f"   OK Apres paiement de 3000 DA, reste: {enrollment.balance_due} DA")
 
 
 class StudentListViewTest(TestCase):
@@ -209,7 +209,7 @@ class StudentListViewTest(TestCase):
         students = response.context['students']
         self.assertEqual(students.paginator.count, 2)
 
-        print(f"   ✅ Page chargée avec {students.paginator.count} étudiants")
+        print(f"   OK Page chargee avec {students.paginator.count} etudiants")
 
     def test_02_student_search(self):
         """Test la recherche d'étudiants"""
@@ -222,7 +222,7 @@ class StudentListViewTest(TestCase):
         self.assertEqual(students.paginator.count, 1)
         self.assertEqual(students.object_list[0].first_name, "Alice")
 
-        print(f"   ✅ Recherche 'Alice' trouvée: {students.object_list[0]}")
+        print(f"   OK Recherche 'Alice' trouvee: {students.object_list[0]}")
 
     def test_03_student_filter_by_cohort(self):
         """Test le filtrage par groupe"""
@@ -263,7 +263,7 @@ class StudentListViewTest(TestCase):
         self.assertEqual(students.paginator.count, 1)
         self.assertEqual(students.object_list[0], self.student1)
 
-        print(f"   ✅ Filtrage par '{cohort.name}' trouvé: {students.object_list[0]}")
+        print(f"   OK Filtrage par '{cohort.name}' trouve: {students.object_list[0]}")
 
 
 class StudentDetailViewTest(TestCase):
@@ -328,7 +328,7 @@ class StudentDetailViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['student'], self.student)
 
-        print(f"   ✅ Page de détail chargée pour {self.student}")
+        print(f"   OK Page de detail chargee pour {self.student}")
 
     def test_02_enrollments_displayed(self):
         """Test que les inscriptions sont affichées"""
@@ -340,7 +340,7 @@ class StudentDetailViewTest(TestCase):
         self.assertEqual(enrollments.count(), 1)
         self.assertEqual(enrollments.first().cohort, self.cohort)
 
-        print(f"   ✅ 1 inscription affichée: {enrollments.first().cohort.name}")
+        print(f"   OK 1 inscription affichee: {enrollments.first().cohort.name}")
 
     def test_03_balance_displayed(self):
         """Test que le solde est affiché correctement"""
@@ -354,7 +354,7 @@ class StudentDetailViewTest(TestCase):
         # Le solde initial devrait être égal au tarif
         self.assertEqual(enrollment.balance_due, 7000)
 
-        print(f"   ✅ Solde affiché: {enrollment.balance_due} DA")
+        print(f"   OK Solde affiche: {enrollment.balance_due} DA")
 
     def test_04_payments_history_displayed(self):
         """Test que l'historique des paiements est affiché"""
@@ -383,5 +383,416 @@ class StudentDetailViewTest(TestCase):
         self.assertEqual(payments.count(), 2)
         self.assertEqual(enrollment.balance_due, 2000)  # 7000 - 2000 - 3000
 
-        print(f"   ✅ {payments.count()} paiements affichés")
-        print(f"   ✅ Solde restant: {enrollment.balance_due} DA")
+        print(f"   OK {payments.count()} paiements affiches")
+        print(f"   OK Solde restant: {enrollment.balance_due} DA")
+
+
+class AttendanceSignalsTest(TestCase):
+    """Tests pour les signaux automatiques de création de présences"""
+
+    def setUp(self):
+        # Setup de base
+        from academics.models import CourseSession
+        from students.models import Attendance
+
+        self.ay = AcademicYear.objects.create(
+            label="2024",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 12, 31)
+        )
+        self.teacher = User.objects.create_user(
+            username="teacher",
+            is_teacher=True,
+            birth_date=date(1985, 5, 15)
+        )
+        self.subject = Subject.objects.create(name="Mathématiques")
+        self.level = Level.objects.create(name="Terminale")
+        self.classroom = Classroom.objects.create(name="Salle A")
+        self.cohort = Cohort.objects.create(
+            name="Maths Terminale",
+            subject=self.subject,
+            level=self.level,
+            teacher=self.teacher,
+            academic_year=self.ay,
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 6, 30),
+            teacher_hourly_rate=2000
+        )
+        self.student1 = Student.objects.create(
+            first_name="Alice", last_name="Durand", phone="0555111111",
+            student_code="ST-TEST-ATT-001", birth_date=date(2005, 3, 15)
+        )
+        self.student2 = Student.objects.create(
+            first_name="Bob", last_name="Martin", phone="0555222222",
+            student_code="ST-TEST-ATT-002", birth_date=date(2006, 7, 22)
+        )
+        self.tariff = Tariff.objects.create(name="Standard", amount=8000)
+
+    def test_01_attendance_created_on_enrollment(self):
+        """Test que les présences sont créées automatiquement lors d'une inscription"""
+        from academics.models import CourseSession
+        from students.models import Attendance
+        from django.utils import timezone
+        from datetime import timedelta
+
+        print("\n[TEST] Test 1: Création automatique des présences à l'inscription")
+
+        # Créer une séance future (demain)
+        tomorrow = timezone.now().date() + timedelta(days=1)
+        session = CourseSession.objects.create(
+            cohort=self.cohort,
+            date=tomorrow,
+            start_time=time(9, 0),
+            end_time=time(11, 0),
+            status='SCHEDULED',
+            teacher=self.teacher,
+            classroom=self.classroom
+        )
+
+        # Inscrire un étudiant
+        enrollment = Enrollment.objects.create(
+            student=self.student1,
+            cohort=self.cohort,
+            tariff=self.tariff,
+            payment_plan='FULL',
+            is_active=True
+        )
+
+        # Vérifier que la présence a été créée automatiquement
+        attendance = Attendance.objects.filter(
+            session=session,
+            student=self.student1
+        )
+
+        self.assertTrue(attendance.exists())
+        self.assertEqual(attendance.first().status, 'PRESENT')
+        self.assertTrue(attendance.first().billable)
+
+        print(f"   OK Presence creee automatiquement pour {self.student1} a la seance du {tomorrow}")
+
+    def test_02_attendance_created_on_session_creation(self):
+        """Test que les présences sont créées pour tous les étudiants lors de la création d'une séance"""
+        from academics.models import CourseSession
+        from students.models import Attendance
+
+        print("\n[TEST] Test 2: Création automatique des présences lors de la création d'une séance")
+
+        # Inscrire deux étudiants
+        enrollment1 = Enrollment.objects.create(
+            student=self.student1,
+            cohort=self.cohort,
+            tariff=self.tariff,
+            payment_plan='FULL',
+            is_active=True
+        )
+        enrollment2 = Enrollment.objects.create(
+            student=self.student2,
+            cohort=self.cohort,
+            tariff=self.tariff,
+            payment_plan='PACK',
+            is_active=True
+        )
+
+        # Créer une nouvelle séance
+        session = CourseSession.objects.create(
+            cohort=self.cohort,
+            date=date(2024, 4, 10),
+            start_time=time(14, 0),
+            end_time=time(16, 0),
+            status='SCHEDULED',
+            teacher=self.teacher,
+            classroom=self.classroom
+        )
+
+        # Vérifier que les présences ont été créées pour les deux étudiants
+        attendances = Attendance.objects.filter(session=session)
+
+        self.assertEqual(attendances.count(), 2)
+        self.assertTrue(attendances.filter(student=self.student1).exists())
+        self.assertTrue(attendances.filter(student=self.student2).exists())
+
+        print(f"   OK {attendances.count()} presences creees automatiquement pour la seance")
+
+
+class AttendancePersistenceTest(TestCase):
+    """Tests pour la persistance des présences en base de données"""
+
+    def setUp(self):
+        from academics.models import CourseSession
+
+        # Setup complet
+        self.ay = AcademicYear.objects.create(
+            label="2024",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 12, 31)
+        )
+        self.teacher = User.objects.create_user(
+            username="teacher",
+            password="test123",
+            is_teacher=True,
+            birth_date=date(1985, 5, 15)
+        )
+        self.subject = Subject.objects.create(name="Physique")
+        self.level = Level.objects.create(name="Première")
+        self.classroom = Classroom.objects.create(name="Salle B")
+        self.cohort = Cohort.objects.create(
+            name="Physique Première",
+            subject=self.subject,
+            level=self.level,
+            teacher=self.teacher,
+            academic_year=self.ay,
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 6, 30),
+            teacher_hourly_rate=1800
+        )
+        self.student = Student.objects.create(
+            first_name="Charlie", last_name="Dupont", phone="0555333333",
+            student_code="ST-TEST-PERSIST-001", birth_date=date(2005, 8, 20)
+        )
+        self.tariff = Tariff.objects.create(name="Standard", amount=7000)
+        self.enrollment = Enrollment.objects.create(
+            student=self.student,
+            cohort=self.cohort,
+            tariff=self.tariff,
+            payment_plan='FULL',
+            is_active=True
+        )
+        self.session = CourseSession.objects.create(
+            cohort=self.cohort,
+            date=date(2024, 2, 15),
+            start_time=time(10, 0),
+            end_time=time(12, 0),
+            status='SCHEDULED',
+            teacher=self.teacher,
+            classroom=self.classroom
+        )
+
+        # Créer un client pour les tests de vues
+        self.client = Client()
+        self.client.login(username='teacher', password='test123')
+
+    def test_01_attendance_persists_after_update(self):
+        """Test que les présences sont bien stockées et persistent après modification"""
+        from students.models import Attendance
+
+        print("\n[TEST] Test 1: Persistance des présences après modification")
+
+        # Marquer l'étudiant comme absent
+        response = self.client.post(
+            reverse('academics:session_detail', args=[self.session.id]),
+            {
+                f'status_{self.student.id}': 'ABSENT',
+                'session_note': 'Test de persistance'
+            }
+        )
+
+        # Rafraîchir les objets depuis la base de données
+        self.session.refresh_from_db()
+
+        # Vérifier que la présence a été mise à jour
+        attendance = Attendance.objects.get(
+            session=self.session,
+            student=self.student
+        )
+
+        self.assertEqual(attendance.status, 'ABSENT')
+        self.assertEqual(self.session.note, 'Test de persistance')
+        self.assertEqual(self.session.status, 'COMPLETED')
+
+        print(f"   OK Statut persiste: {attendance.get_status_display()}")
+        print(f"   OK Note de seance: {self.session.note}")
+
+    def test_02_attendance_displayed_correctly(self):
+        """Test que les présences stockées sont affichées correctement dans le formulaire"""
+        from students.models import Attendance
+
+        print("\n[TEST] Test 2: Affichage correct des présences stockées")
+
+        # Modifier la présence manuellement
+        Attendance.objects.filter(
+            session=self.session,
+            student=self.student
+        ).update(status='LATE')
+
+        # Recharger la page
+        response = self.client.get(
+            reverse('academics:session_detail', args=[self.session.id])
+        )
+
+        # Vérifier que le contexte contient le bon statut
+        attendance_dict = response.context['attendance_dict']
+        self.assertEqual(attendance_dict[self.student.id], 'LATE')
+
+        print(f"   OK Statut affiche correctement: {attendance_dict[self.student.id]}")
+
+    def test_03_hours_consumed_calculated(self):
+        """Test que les heures consommées sont bien calculées pour les packs"""
+        from students.models import Attendance
+
+        print("\n[TEST] Test 3: Calcul des heures consommées")
+
+        # Changer le plan de paiement en PACK
+        self.enrollment.payment_plan = 'PACK'
+        self.enrollment.hours_purchased = 10
+        self.enrollment.save()
+
+        # Marquer comme présent et facturable
+        # Utiliser save() au lieu de update() pour déclencher le signal
+        attendance = Attendance.objects.get(
+            session=self.session,
+            student=self.student
+        )
+        attendance.status = 'PRESENT'
+        attendance.billable = True
+        attendance.save()
+
+        # Rafraîchir l'enrollment
+        self.enrollment.refresh_from_db()
+
+        # La séance dure 2h (10h-12h)
+        self.assertEqual(self.enrollment.hours_consumed, 2.0)
+
+        print(f"   OK Heures consommees: {self.enrollment.hours_consumed}h / {self.enrollment.hours_purchased}h")
+
+
+class AttendanceDocumentGenerationTest(TestCase):
+    """Tests pour la génération de documents avec les vraies présences"""
+
+    def setUp(self):
+        from academics.models import CourseSession
+
+        # Setup complet
+        self.ay = AcademicYear.objects.create(
+            label="2024",
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 12, 31)
+        )
+        self.teacher = User.objects.create_user(
+            username="teacher",
+            password="test123",
+            is_teacher=True,
+            birth_date=date(1985, 5, 15)
+        )
+        self.subject = Subject.objects.create(name="Chimie")
+        self.level = Level.objects.create(name="Terminale")
+        self.classroom = Classroom.objects.create(name="Labo")
+        self.cohort = Cohort.objects.create(
+            name="Chimie Terminale",
+            subject=self.subject,
+            level=self.level,
+            teacher=self.teacher,
+            academic_year=self.ay,
+            start_date=date(2024, 1, 1),
+            end_date=date(2024, 6, 30),
+            teacher_hourly_rate=2200
+        )
+        self.student1 = Student.objects.create(
+            first_name="David", last_name="Bernard", phone="0555444444",
+            student_code="ST-TEST-DOC-001", birth_date=date(2005, 4, 10)
+        )
+        self.student2 = Student.objects.create(
+            first_name="Emma", last_name="Laurent", phone="0555555555",
+            student_code="ST-TEST-DOC-002", birth_date=date(2006, 9, 5)
+        )
+        self.tariff = Tariff.objects.create(name="Standard", amount=9000)
+
+        # Créer des inscriptions
+        self.enrollment1 = Enrollment.objects.create(
+            student=self.student1,
+            cohort=self.cohort,
+            tariff=self.tariff,
+            payment_plan='FULL',
+            is_active=True
+        )
+        self.enrollment2 = Enrollment.objects.create(
+            student=self.student2,
+            cohort=self.cohort,
+            tariff=self.tariff,
+            payment_plan='FULL',
+            is_active=True
+        )
+
+        # Créer des séances
+        self.session1 = CourseSession.objects.create(
+            cohort=self.cohort,
+            date=date(2024, 3, 10),
+            start_time=time(9, 0),
+            end_time=time(11, 0),
+            status='COMPLETED',
+            teacher=self.teacher,
+            classroom=self.classroom
+        )
+        self.session2 = CourseSession.objects.create(
+            cohort=self.cohort,
+            date=date(2024, 3, 17),
+            start_time=time(9, 0),
+            end_time=time(11, 0),
+            status='COMPLETED',
+            teacher=self.teacher,
+            classroom=self.classroom
+        )
+
+        self.client = Client()
+        self.client.login(username='teacher', password='test123')
+
+    def test_01_download_session_attendance(self):
+        """Test le téléchargement de la liste de présence d'une séance"""
+        from students.models import Attendance
+
+        print("\n[TEST] Test 1: Téléchargement de la liste de présence d'une séance")
+
+        # Modifier les statuts
+        Attendance.objects.filter(
+            session=self.session1,
+            student=self.student1
+        ).update(status='PRESENT')
+
+        Attendance.objects.filter(
+            session=self.session1,
+            student=self.student2
+        ).update(status='ABSENT')
+
+        # Télécharger le document
+        response = self.client.get(
+            reverse('documents:download_session_attendance', args=[self.session1.id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+        self.assertIn('attachment', response['Content-Disposition'])
+
+        print(f"   OK Document genere avec succes")
+        print(f"   OK Type: {response['Content-Type']}")
+
+    def test_02_download_cohort_attendance(self):
+        """Test le téléchargement de la liste complète d'un groupe"""
+        from students.models import Attendance
+
+        print("\n[TEST] Test 2: Téléchargement de la liste complète du groupe")
+
+        # Modifier quelques statuts
+        Attendance.objects.filter(
+            session=self.session1,
+            student=self.student1
+        ).update(status='PRESENT')
+
+        Attendance.objects.filter(
+            session=self.session2,
+            student=self.student1
+        ).update(status='LATE')
+
+        # Télécharger le document
+        response = self.client.get(
+            reverse('documents:download_cohort_attendance', args=[self.cohort.id])
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response['Content-Type'],
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        )
+
+        print(f"   OK Document complet genere avec succes")

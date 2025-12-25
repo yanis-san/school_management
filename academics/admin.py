@@ -20,8 +20,8 @@ class CourseSessionInline(admin.TabularInline):
 
 @admin.register(Cohort)
 class CohortAdmin(admin.ModelAdmin):
-    list_display = ('name', 'subject', 'level', 'teacher', 'start_date', 'end_date', 'schedule_generated')
-    list_filter = ('academic_year', 'subject', 'level', 'teacher')
+    list_display = ('name', 'subject', 'level', 'teacher', 'modality', 'is_individual', 'start_date', 'end_date', 'schedule_generated')
+    list_filter = ('academic_year', 'subject', 'level', 'teacher', 'modality', 'is_individual')
     inlines = [WeeklyScheduleInline, CourseSessionInline]
     actions = ['force_schedule_generation']
 

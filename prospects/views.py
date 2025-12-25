@@ -1,0 +1,491 @@
+from django.shortcuts import render, get_object_or_404, redirect
+from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import ensure_csrf_cookie
+from django.contrib.auth.decorators import login_required
+import csv
+import io
+from datetime import datetime
+from .models import Prospect
+from django.core.paginator import Paginator
+
+
+@login_required
+@ensure_csrf_cookie
+def prospect_list(request):
+    """Affiche la liste des prospects avec recherche/filtre/pagination"""
+    qs = Prospect.objects.all().order_by('-created_at')
+
+    # Filtres
+    q = (request.GET.get('q') or '').strip()
+    converted = (request.GET.get('converted') or '').strip()  # '', 'yes', 'no'
+    source = (request.GET.get('source') or '').strip()
+    activity_type = (request.GET.get('activity_type') or '').strip()
+    level = (request.GET.get('level') or '').strip()
+    start = (request.GET.get('start') or '').strip()
+    end = (request.GET.get('end') or '').strip()
+
+    if q:
+        from django.db.models import Q
+        qs = qs.filter(
+            Q(first_name__icontains=q) |
+            Q(last_name__icontains=q) |
+            Q(email__icontains=q) |
+            Q(phone__icontains=q)
+        )
+
+    if converted == 'yes':
+        qs = qs.filter(converted=True)
+    elif converted == 'no':
+        qs = qs.filter(converted=False)
+
+    if source:
+        qs = qs.filter(source__iexact=source)
+
+    if activity_type:
+        qs = qs.filter(activity_type__icontains=activity_type)
+
+    if level:
+        qs = qs.filter(level__iexact=level)
+
+    # Filtre par dates
+    from datetime import datetime as _dt
+    def _parse_date(val):
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y'):
+            try:
+                return _dt.strptime(val, fmt)
+            except Exception:
+                continue
+        return None
+
+    if start:
+        d = _parse_date(start)
+        if d:
+            qs = qs.filter(created_at__gte=d)
+
+    if end:
+        d = _parse_date(end)
+        if d:
+            qs = qs.filter(created_at__lte=d)
+
+    total = qs.count()
+    converted_count = qs.filter(converted=True).count()
+    not_converted_count = qs.filter(converted=False).count()
+
+    # Pagination
+    page = int(request.GET.get('page', 1))
+    per_page = int(request.GET.get('per_page', 25))
+    paginator = Paginator(qs, per_page)
+    page_obj = paginator.get_page(page)
+
+    # Sources / levels / activities distincts (pour dropdowns)
+    distinct_sources = list(Prospect.objects.exclude(source='').exclude(source__isnull=True).values_list('source', flat=True).distinct().order_by('source'))
+    distinct_levels = list(Prospect.objects.exclude(level='').exclude(level__isnull=True).values_list('level', flat=True).distinct().order_by('level'))
+    distinct_activities = list(Prospect.objects.exclude(activity_type='').exclude(activity_type__isnull=True).values_list('activity_type', flat=True).distinct().order_by('activity_type'))
+
+    context = {
+        'prospects': page_obj,
+        'page_obj': page_obj,
+        'paginator': paginator,
+        'total': total,
+        'converted': converted_count,
+        'not_converted': not_converted_count,
+        # Filtres (pour conserver les valeurs)
+        'q': q,
+        'f_converted': converted,
+        'f_source': source,
+        'f_activity_type': activity_type,
+        'f_level': level,
+        'f_start': start,
+        'f_end': end,
+        'distinct_sources': distinct_sources,
+        'distinct_levels': distinct_levels,
+        'distinct_activities': distinct_activities,
+        'per_page': per_page,
+    }
+    return render(request, 'prospects/prospect_list.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def upload_csv(request):
+    """Upload et parse un fichier CSV"""
+    if 'file' not in request.FILES:
+        return JsonResponse({'success': False, 'error': 'Aucun fichier'}, status=400)
+    
+    csv_file = request.FILES['file']
+    
+    if not csv_file.name.endswith('.csv'):
+        return JsonResponse({'success': False, 'error': 'Le fichier doit être un CSV'}, status=400)
+    
+    try:
+        # Lire tout le contenu (gestion du BOM éventuel) et parser
+        content = csv_file.read().decode('utf-8-sig')
+        stream = io.StringIO(content)
+        csv_reader = csv.DictReader(stream)
+
+        created = 0
+        updated = 0
+        processed = 0
+        errors = []
+
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                processed += 1
+                # Parser la date de naissance éventuelle (AAAA-MM-JJ ou JJ/MM/AAAA)
+                birth_date = None
+                raw_bd = row.get('Date de naissance') or row.get('Date de naissance '.strip())
+                if raw_bd:
+                    raw_bd = raw_bd.strip()
+                    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
+                        try:
+                            birth_date = datetime.strptime(raw_bd, fmt).date()
+                            break
+                        except Exception:
+                            continue
+
+                # Parser l'âge
+                age_val = None
+                raw_age = row.get('Âge') or row.get('Age') or row.get('age')
+                if raw_age:
+                    try:
+                        age_val = int(str(raw_age).strip())
+                    except Exception:
+                        age_val = None
+
+                # Créer / mettre à jour le prospect (clé: email)
+                email = (row.get('Email') or '').strip()
+                if not email:
+                    raise ValueError("Email manquant")
+
+                defaults = {
+                    'first_name': (row.get('Prénom') or row.get('Prenom') or '').strip(),
+                    'last_name': (row.get('Nom') or '').strip(),
+                    'phone': (row.get('Téléphone') or row.get('Telephone') or row.get('Tel') or '').strip(),
+                    'age': age_val,
+                    'birth_date': birth_date,
+                    'level': (row.get('Niveau') or '').strip(),
+                    'source': (row.get('Source') or '').strip(),
+                    'activity_type': (row.get("Type d'activité") or row.get('Type activite') or '').strip(),
+                    'specific_course': (row.get('Cours spécifique') or row.get('Cours specifique') or '').strip(),
+                    'message': (row.get('Message') or '').strip(),
+                    'notes': (row.get('Notes') or '').strip(),
+                }
+
+                prospect, was_created = Prospect.objects.get_or_create(
+                    email=email,
+                    defaults=defaults
+                )
+                
+                if was_created:
+                    created += 1
+                else:
+                    # Ne pas écraser le statut si le prospect existe déjà
+                    # Mettre à jour uniquement les champs non-statut
+                    for key, value in defaults.items():
+                        setattr(prospect, key, value)
+                    prospect.save(update_fields=list(defaults.keys()))
+                    updated += 1
+            except Exception as e:
+                errors.append(f"Ligne {row_num}: {str(e)}")
+
+        message = f"Import terminé. {created} nouveau(x) prospect(s) ajouté(s), {updated} déjà existant(s)."
+        if errors:
+            message += f" {len(errors)} erreur(s)."
+
+        return JsonResponse({
+            'success': True,
+            'message': message,
+            'created': created,
+            'skipped': updated,
+            'processed': processed,
+            'errors': errors
+        })
+    
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=400)
+
+
+@login_required
+def get_prospect_data(request, prospect_id):
+    """Retourne les données d'un prospect en JSON pour pré-remplissage"""
+    prospect = get_object_or_404(Prospect, pk=prospect_id)
+    
+    return JsonResponse({
+        'first_name': prospect.first_name,
+        'last_name': prospect.last_name,
+        'email': prospect.email,
+        'phone': prospect.phone,
+        'age': prospect.age or '',
+        'birth_date': prospect.birth_date.isoformat() if prospect.birth_date else '',
+        'message': prospect.message,
+        'activity_summary': prospect.get_activity_summary(),
+    })
+
+
+@login_required
+def convert_to_student(request, prospect_id):
+    """Convertit un prospect en étudiant et ouvre le formulaire d'inscription pré-rempli"""
+    prospect = get_object_or_404(Prospect, pk=prospect_id)
+    
+    # Marquer comme converti
+    prospect.converted = True
+    prospect.save()
+    
+    # Retourner un succès JSON pour AJAX
+    return JsonResponse({'success': True, 'message': f'{prospect.first_name} {prospect.last_name} marqué comme converti.'})
+
+
+@login_required
+@require_http_methods(["POST"])
+def cancel_conversion(request, prospect_id):
+    """Annule la conversion d'un prospect : remet converted=False et supprime l'étudiant correspondant"""
+    prospect = get_object_or_404(Prospect, pk=prospect_id)
+    
+    if not prospect.converted:
+        return JsonResponse({'success': False, 'message': 'Ce prospect n\'est pas converti.'}, status=400)
+    
+    # Chercher l'étudiant avec le même email
+    from students.models import Student
+    deleted_count = 0
+    if prospect.email:
+        students = Student.objects.filter(email=prospect.email)
+        deleted_count = students.count()
+        students.delete()  # Le signal reset_prospect_on_student_delete va mettre converted=False automatiquement
+    
+    # Si pas d'email ou pas d'étudiant trouvé, on remet quand même converted=False
+    if deleted_count == 0:
+        prospect.converted = False
+        prospect.save()
+    
+    message = f'Conversion annulée. {deleted_count} étudiant(s) supprimé(s).' if deleted_count > 0 else 'Conversion annulée.'
+    return JsonResponse({'success': True, 'message': message})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def add_prospect(request):
+    """Ajouter un nouveau prospect"""
+    if request.method == "POST":
+        try:
+            # Parser date de naissance
+            birth_date = None
+            bd_str = request.POST.get('birth_date', '').strip()
+            if bd_str:
+                from datetime import datetime
+                birth_date = datetime.strptime(bd_str, '%Y-%m-%d').date()
+            
+            Prospect.objects.create(
+                first_name=request.POST.get('first_name', '').strip(),
+                last_name=request.POST.get('last_name', '').strip(),
+                email=request.POST.get('email', '').strip(),
+                phone=request.POST.get('phone', '').strip(),
+                birth_date=birth_date,
+                age=int(request.POST.get('age', 0) or 0),
+                level=request.POST.get('level', '').strip(),
+                source=request.POST.get('source', '').strip(),
+                activity_type=request.POST.get('activity_type', '').strip(),
+                specific_course=request.POST.get('specific_course', '').strip(),
+                message=request.POST.get('message', '').strip(),
+                notes=request.POST.get('notes', '').strip(),
+            )
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    
+    # GET: retourner le formulaire HTML
+    return render(request, 'prospects/prospect_form.html', {'prospect': None})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def edit_prospect(request, prospect_id):
+    """Modifier un prospect existant"""
+    prospect = get_object_or_404(Prospect, pk=prospect_id)
+    
+    if request.method == "POST":
+        try:
+            # Parser date de naissance
+            birth_date = None
+            bd_str = request.POST.get('birth_date', '').strip()
+            if bd_str:
+                from datetime import datetime
+                birth_date = datetime.strptime(bd_str, '%Y-%m-%d').date()
+            
+            prospect.first_name = request.POST.get('first_name', '').strip()
+            prospect.last_name = request.POST.get('last_name', '').strip()
+            prospect.email = request.POST.get('email', '').strip()
+            prospect.phone = request.POST.get('phone', '').strip()
+            prospect.birth_date = birth_date
+            prospect.age = int(request.POST.get('age', 0) or 0)
+            prospect.level = request.POST.get('level', '').strip()
+            prospect.source = request.POST.get('source', '').strip()
+            prospect.activity_type = request.POST.get('activity_type', '').strip()
+            prospect.specific_course = request.POST.get('specific_course', '').strip()
+            prospect.message = request.POST.get('message', '').strip()
+            prospect.notes = request.POST.get('notes', '').strip()
+            prospect.save()
+            
+            return JsonResponse({'success': True})
+        except Exception as e:
+            return JsonResponse({'success': False, 'error': str(e)}, status=400)
+    
+    # GET: retourner le formulaire HTML pré-rempli
+    return render(request, 'prospects/prospect_form.html', {'prospect': prospect})
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_prospect(request, prospect_id):
+    """Supprimer un prospect"""
+    prospect = get_object_or_404(Prospect, pk=prospect_id)
+    prospect.delete()
+    return JsonResponse({'success': True})
+
+
+@login_required
+def prospect_dashboard(request):
+    """Dashboard des prospects avec statistiques et graphiques"""
+    import json
+    from django.db.models import Count, Q
+    from datetime import datetime, timedelta
+    from django.utils import timezone
+    
+    today = timezone.now().date()
+    
+    # Données globales
+    total_prospects = Prospect.objects.count()
+    converted_count = Prospect.objects.filter(converted=True).count()
+    unconverted_count = total_prospects - converted_count
+    conversion_rate = (converted_count / total_prospects * 100) if total_prospects > 0 else 0
+    
+    # Conversions par période
+    last_month_start = today.replace(day=1) - timedelta(days=1)
+    last_month_start = last_month_start.replace(day=1)
+    converted_last_month = Prospect.objects.filter(
+        converted=True,
+        updated_at__date__gte=last_month_start,
+        updated_at__date__lte=today
+    ).count()
+    
+    # Conversions par trimestre (année académique 9-8)
+    month = today.month
+    if month in [9, 10, 11]:
+        quarter = 'Q1'
+        q_start = today.replace(month=9, day=1)
+    elif month in [12, 1, 2]:
+        quarter = 'Q2'
+        if month in [12]:
+            q_start = today.replace(month=12, day=1)
+        else:
+            q_start = today.replace(year=today.year-1, month=12, day=1)
+    elif month in [3, 4, 5]:
+        quarter = 'Q3'
+        q_start = today.replace(month=3, day=1)
+    else:
+        quarter = 'Q4'
+        q_start = today.replace(month=6, day=1)
+    
+    converted_last_quarter = Prospect.objects.filter(
+        converted=True,
+        updated_at__date__gte=q_start
+    ).count()
+    
+    # Sujets/Cours les plus demandés
+    top_courses = Prospect.objects.exclude(
+        specific_course=''
+    ).values('specific_course').annotate(
+        count=Count('id')
+    ).order_by('-count')[:10]
+    
+    courses_data = {item['specific_course']: item['count'] for item in top_courses}
+    
+    # Activités/Types les plus demandées
+    top_activities = Prospect.objects.exclude(
+        activity_type=''
+    ).values('activity_type').annotate(
+        count=Count('id')
+    ).order_by('-count')[:10]
+    
+    activities_data = {item['activity_type']: item['count'] for item in top_activities}
+    
+    # Niveaux demandés
+    level_dist = Prospect.objects.exclude(
+        level=''
+    ).values('level').annotate(
+        count=Count('id')
+    ).order_by('-count')
+    
+    levels_data = {item['level']: item['count'] for item in level_dist}
+    
+    # Sources
+    source_dist = Prospect.objects.exclude(
+        source=''
+    ).values('source').annotate(
+        count=Count('id')
+    ).order_by('-count')
+    
+    sources_data = {item['source']: item['count'] for item in source_dist}
+    
+    # Modalité estimée (En ligne vs Présentiel) - basée sur le titre du cours
+    all_prospects = Prospect.objects.all()
+    online_count = 0
+    in_person_count = 0
+    
+    for prospect in all_prospects:
+        course_title = (prospect.specific_course or '').lower()
+        if 'en ligne' in course_title or 'online' in course_title:
+            online_count += 1
+        else:
+            in_person_count += 1
+    
+    # Conversions timeline (par mois) - 12 derniers mois
+    from datetime import date
+    conversions_by_month = {}
+    
+    # Générer les 12 derniers mois
+    current_date = date.today()
+    for i in range(11, -1, -1):
+        # Calculer le mois
+        target_month = current_date.month - i
+        target_year = current_date.year
+        
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+        
+        # Début et fin du mois
+        from calendar import monthrange
+        month_start = date(target_year, target_month, 1)
+        last_day = monthrange(target_year, target_month)[1]
+        month_end = date(target_year, target_month, last_day)
+        
+        # Compter les conversions
+        count = Prospect.objects.filter(
+            converted=True,
+            updated_at__date__gte=month_start,
+            updated_at__date__lte=month_end
+        ).count()
+        
+        month_label = month_start.strftime('%b %Y')
+        conversions_by_month[month_label] = count
+    
+    context = {
+        'total_prospects': total_prospects,
+        'converted_count': converted_count,
+        'unconverted_count': unconverted_count,
+        'conversion_rate': round(conversion_rate, 1),
+        'converted_last_month': converted_last_month,
+        'converted_last_quarter': converted_last_quarter,
+        'current_quarter': quarter,
+        'courses_data': courses_data,
+        'activities_data': activities_data,
+        'levels_data': levels_data,
+        'sources_data': sources_data,
+        'conversions_by_month': conversions_by_month,
+        'online_count': online_count,
+        'in_person_count': in_person_count,
+        'today': today,
+    }
+    
+    return render(request, 'prospects/prospect_dashboard.html', context)

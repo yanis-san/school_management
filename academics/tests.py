@@ -85,7 +85,7 @@ class SchoolSystemTest(TestCase):
         
         sessions = CourseSession.objects.filter(cohort=self.cohort)
         self.assertTrue(sessions.count() > 0)
-        print(f"   ✅ {sessions.count()} Séances générées")
+        print(f"   OK {sessions.count()} Seances generees")
 
 
     def test_02_rescheduling_logic(self):
@@ -116,8 +116,8 @@ class SchoolSystemTest(TestCase):
         last_session = CourseSession.objects.filter(cohort=self.cohort).last()
         
         self.assertTrue(last_session.date > original_end_date)
-        print(f"   ✅ Séance reportée. Rattrapage créé le {last_session.date}")
-        print(f"   ✅ La date de fin du groupe a été repoussée au {self.cohort.end_date}")
+        print(f"   OK Seance reportee. Rattrapage cree le {last_session.date}")
+        print(f"   OK La date de fin du groupe a ete repoussee au {self.cohort.end_date}")
 
     def test_04_teacher_payroll_calculation_volume(self):
         """
@@ -148,7 +148,7 @@ class SchoolSystemTest(TestCase):
         expected_amount = 4 * 2.0 * 1500
         
         self.assertEqual(amount_due, expected_amount)
-        print(f"   ✅ Calcul validé : 4 séances de 2h à 1500da/h = {amount_due} DA")
+        print(f"   OK Calcul valide : 4 seances de 2h a 1500da/h = {amount_due} DA")
 
     def test_05_teacher_payroll_mixed_duration(self):
         """
@@ -171,7 +171,7 @@ class SchoolSystemTest(TestCase):
         
         # Attendu : 3 heures * 1500 = 4500 DA
         self.assertEqual(amount_due, 4500)
-        print(f"   ✅ Calcul validé pour durée modifiée (3h) : {amount_due} DA")
+        print(f"   OK Calcul valide pour duree modifiee (3h) : {amount_due} DA")
 
 
 class AcademicsViewsTest(TestCase):
@@ -239,7 +239,7 @@ class AcademicsViewsTest(TestCase):
         self.assertEqual(cohorts.count(), 1)
         self.assertEqual(cohorts.first(), self.cohort)
 
-        print(f"   ✅ Liste chargée avec {cohorts.count()} groupe(s)")
+        print(f"   OK Liste chargee avec {cohorts.count()} groupe(s)")
 
     def test_02_cohort_detail_view(self):
         """Test la vue détail d'un groupe"""
@@ -252,7 +252,7 @@ class AcademicsViewsTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.context['cohort'], self.cohort)
 
-        print(f"   ✅ Détail du groupe '{self.cohort.name}' chargé")
+        print(f"   OK Detail du groupe '{self.cohort.name}' charge")
 
     def test_03_generate_sessions_view(self):
         """Test la génération de séances via la vue"""
@@ -278,7 +278,7 @@ class AcademicsViewsTest(TestCase):
         sessions = CourseSession.objects.filter(cohort=self.cohort)
         self.assertTrue(sessions.count() > 0)
 
-        print(f"   ✅ {sessions.count()} séances générées automatiquement")
+        print(f"   OK {sessions.count()} seances generees automatiquement")
 
     def test_04_session_detail_view_get(self):
         """Test la vue de détail d'une séance (GET)"""
@@ -309,7 +309,7 @@ class AcademicsViewsTest(TestCase):
         enrollments = response.context['enrollments']
         self.assertEqual(enrollments.count(), 2)
 
-        print(f"   ✅ Formulaire chargé avec {enrollments.count()} étudiants")
+        print(f"   OK Formulaire charge avec {enrollments.count()} etudiants")
 
     def test_05_session_detail_view_post_attendance(self):
         """Test l'enregistrement des présences via POST"""
@@ -362,7 +362,118 @@ class AcademicsViewsTest(TestCase):
         self.assertEqual(attendance1.status, 'PRESENT')
         self.assertEqual(attendance2.status, 'ABSENT')
 
-        print(f"   ✅ {attendances.count()} présences enregistrées")
-        print(f"   ✅ Session marquée comme: {session.status}")
+        print(f"   OK {attendances.count()} presences enregistrees")
+        print(f"   OK Session marquee comme: {session.status}")
+
+    def test_06_session_detail_readonly_shows_saved_status(self):
+        """En mode lecture (séance complétée), le statut enregistré doit apparaître."""
+        print("\n[TEST] Test 6: Lecture seule des présences enregistrées")
+
+        # Générer des séances
+        self.cohort.schedule_generated = True
+        self.cohort.save()
+
+        session = CourseSession.objects.filter(cohort=self.cohort).first()
+
+        # Créer un étudiant et inscription
+        tariff = Tariff.objects.create(name="Standard", amount=5000)
+        student = Student.objects.create(first_name="Alice", last_name="Test", phone="0555111111", phone_2="", student_code="ST-ACAD-003", birth_date=date(2005, 3, 15))
+        enrollment = Enrollment.objects.create(student=student, cohort=self.cohort, tariff=tariff, payment_plan='FULL')
+
+        # Enregistrer une présence ABSENT
+        from students.models import Attendance
+        Attendance.objects.update_or_create(
+            session=session,
+            student=student,
+            defaults={'status': 'ABSENT', 'enrollment': enrollment}
+        )
+
+        # Marquer la séance complétée
+        session.status = 'COMPLETED'
+        session.save()
+
+        self.client.login(username='teacher', password='test123')
+        from django.urls import reverse
+        response = self.client.get(reverse('academics:session_detail', args=[session.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context['is_editing'])
+        attendance_dict = response.context['attendance_dict']
+        self.assertEqual(attendance_dict.get(student.id), 'ABSENT')
+
+        # Vérifie que l'icône Absent apparaît dans le HTML (✖)
+        self.assertIn('✖', response.content.decode())
+        self.assertIn('Séance validée', response.content.decode())
+        print("   OK Lecture seule affiche le statut Absent")
+
+    def test_07_session_detail_post_restricts_status_choices(self):
+        """Le POST ne doit accepter que PRESENT ou ABSENT (valeurs invalides => PRESENT)."""
+        print("\n[TEST] Test 7: Restriction des statuts en POST")
+
+        self.cohort.schedule_generated = True
+        self.cohort.save()
+
+        session = CourseSession.objects.filter(cohort=self.cohort).first()
+        session.status = 'SCHEDULED'
+        session.save()
+
+        tariff = Tariff.objects.create(name="Standard", amount=5000)
+        student = Student.objects.create(first_name="Bob", last_name="Test", phone="0555222222", phone_2="", student_code="ST-ACAD-004", birth_date=date(2006, 7, 22))
+        enrollment = Enrollment.objects.create(student=student, cohort=self.cohort, tariff=tariff, payment_plan='FULL')
+
+        self.client.login(username='teacher', password='test123')
+        from django.urls import reverse
+
+        # Envoyer un statut invalide (LATE) -> doit être converti en PRESENT
+        post_data = {
+            'session_note': 'Cours test',
+            f'status_{student.id}': 'LATE'
+        }
+
+        response = self.client.post(reverse('academics:session_detail', args=[session.id]), post_data)
+        self.assertEqual(response.status_code, 302)
+
+        session.refresh_from_db()
+        self.assertEqual(session.status, 'COMPLETED')
+
+        from students.models import Attendance
+        attendance = Attendance.objects.get(session=session, student=student)
+        self.assertEqual(attendance.status, 'PRESENT')
+        self.assertEqual(attendance.enrollment, enrollment)
+        print("   OK Statut invalide converti en PRESENT et enregistrement unique")
+
+    def test_08_is_finished_and_locking(self):
+        """Un groupe terminé affiche le badge et bloque les POST de présence."""
+        print("\n[TEST] Test 8: Terminé + verrou")
+        # Générer et compléter toutes les séances
+        self.cohort.schedule_generated = True
+        self.cohort.save()
+        # Completer toutes les seances planifiées
+        sessions = CourseSession.objects.filter(cohort=self.cohort)
+        for s in sessions:
+            s.status = 'COMPLETED'
+            s.save()
+
+        # Vérifier propriété is_finished
+        self.assertTrue(self.cohort.is_finished)
+
+        # Créer un étudiant et inscription pour tenter un POST
+        tariff = Tariff.objects.create(name="Standard", amount=5000)
+        student = Student.objects.create(first_name="Eve", last_name="Test", phone="0555333333", phone_2="", student_code="ST-ACAD-008", birth_date=date(2005, 3, 15))
+        Enrollment.objects.create(student=student, cohort=self.cohort, tariff=tariff, payment_plan='FULL')
+
+        # Prendre une séance (déjà COMPLETED)
+        session = CourseSession.objects.filter(cohort=self.cohort).first()
+
+        from django.urls import reverse
+        self.client.login(username='admin', password='test123')
+        response = self.client.post(reverse('academics:session_detail', args=[session.id]), {
+            'session_note': 'Tentative après fin'
+        })
+        # Doit rediriger avec message et ne pas modifier
+        self.assertEqual(response.status_code, 302)
+        session.refresh_from_db()
+        self.assertEqual(session.status, 'COMPLETED')
+        print("   OK Verrou actif sur groupe terminé")
 
 

@@ -1,4 +1,4 @@
-from django.urls import path
+﻿from django.urls import path
 from . import views
 
 
@@ -11,4 +11,7 @@ urlpatterns = [
     
     # --- NOUVELLE ROUTE ---
     path('session/<int:session_id>/', views.session_detail, name='session_detail'),
+    path('session/<int:session_id>/postpone/', views.postpone_session, name='postpone_session'),
+    path('session/<int:session_id>/cancel-postpone/', views.cancel_postpone, name='cancel_postpone'),
+    path('session/<int:session_id>/change-teacher/', views.change_session_teacher, name='change_session_teacher'),
 ]

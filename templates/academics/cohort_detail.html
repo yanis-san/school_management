@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load custom_filters %}
 
 {% block title %}{{ cohort.name }} - Détails{% endblock %}
 
@@ -21,12 +22,25 @@
                     <span class="px-3 py-1 bg-white/20 rounded-lg text-xs sm:text-sm font-medium">
                         {{ cohort.academic_year }}
                     </span>
+                    {% if cohort.modality == 'ONLINE' %}
+                        <span class="px-3 py-1 bg-blue-200/70 text-white rounded-lg text-xs sm:text-sm font-bold">En ligne</span>
+                    {% else %}
+                        <span class="px-3 py-1 bg-teal-200/70 text-white rounded-lg text-xs sm:text-sm font-bold">Présentiel</span>
+                    {% endif %}
+                    {% if cohort.is_individual %}
+                        <span class="px-3 py-1 bg-rose-200/80 text-rose-900 rounded-lg text-xs sm:text-sm font-bold">Individuel</span>
+                    {% endif %}
+                    {% if cohort.is_finished %}
+                    <span class="px-3 py-1 bg-emerald-200 text-emerald-900 rounded-lg text-xs sm:text-sm font-bold">
+                        Terminé
+                    </span>
+                    {% endif %}
                 </div>
             </div>
             <div class="w-full sm:w-auto text-left sm:text-right">
                 <div class="text-xs sm:text-sm opacity-80">Professeur Titulaire</div>
                 <div class="text-lg sm:text-xl font-bold">{{ cohort.teacher.first_name }} {{ cohort.teacher.last_name }}</div>
-                <div class="text-xs sm:text-sm opacity-80 mt-1">{{ cohort.teacher_hourly_rate }} DA/h</div>
+                <div class="text-xs sm:text-sm opacity-80 mt-1">{{ cohort.teacher_hourly_rate|format_da }} DA/h</div>
             </div>
         </div>
         <div class="mt-4 grid grid-cols-1 sm:flex sm:gap-4 text-xs sm:text-sm gap-2">
@@ -40,7 +54,7 @@
             </div>
             <div>
                 <span class="opacity-80">Prix Standard:</span>
-                <span class="font-bold ml-1">{{ cohort.standard_price }} DA</span>
+                <span class="font-bold ml-1">{{ cohort.standard_price|format_da }} DA</span>
             </div>
         </div>
     </div>
@@ -63,6 +77,53 @@
             <div class="text-xs text-gray-500 uppercase font-semibold">Séances à Venir</div>
             <div class="text-2xl font-bold text-blue-600 mt-1">{{ upcoming_sessions }}</div>
         </div>
+    </div>
+
+    <!-- Mode Ramadan -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+            <div>
+                <h3 class="font-bold text-gray-700">Mode Ramadan</h3>
+                <p class="text-sm text-gray-500">Définissez la plage Ramadan, les horaires spécifiques et le tarif prof pour cette période.</p>
+            </div>
+            {% if cohort.ramadan_start and cohort.ramadan_end %}
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800">Actif</span>
+            {% else %}
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-gray-100 text-gray-600">Inactif</span>
+            {% endif %}
+        </div>
+        <form method="post" class="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            {% csrf_token %}
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Date début Ramadan</label>
+                <input type="date" name="ramadan_start" value="{{ cohort.ramadan_start|date:'Y-m-d' }}" class="w-full p-3 border rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Date fin Ramadan</label>
+                <input type="date" name="ramadan_end" value="{{ cohort.ramadan_end|date:'Y-m-d' }}" class="w-full p-3 border rounded-lg">
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Heure début (Ramadan)</label>
+                <input type="time" name="ramadan_start_time" value="{{ cohort.ramadan_start_time|time:'H:i' }}" class="w-full p-3 border rounded-lg">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Heure fin (Ramadan)</label>
+                <input type="time" name="ramadan_end_time" value="{{ cohort.ramadan_end_time|time:'H:i' }}" class="w-full p-3 border rounded-lg">
+                <p class="text-xs text-gray-500 mt-1">La durée sera calculée automatiquement à partir de ces horaires.</p>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tarif horaire prof (Ramadan)</label>
+                <input type="number" name="ramadan_teacher_hourly_rate" min="0" step="50" placeholder="Tarif Ramadan" value="{{ cohort.ramadan_teacher_hourly_rate }}" class="w-full p-3 border rounded-lg">
+                <p class="text-xs text-gray-500 mt-1">Laisser vide pour garder le tarif standard du groupe.</p>
+            </div>
+
+            <div class="md:col-span-2 flex justify-end gap-3">
+                <a href="?" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg border">Réinitialiser</a>
+                <button type="submit" class="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg shadow-sm hover:bg-indigo-700">Enregistrer</button>
+            </div>
+        </form>
     </div>
 
     <!-- Liste des Étudiants -->
@@ -95,16 +156,20 @@
         </div>
     </div>
 
+    {% if not cohort.schedule_generated or not sessions.exists %}
     <!-- Actions Planning -->
-    {% if not cohort.schedule_generated %}
     <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-xl">
         <div class="flex items-center justify-between">
             <div>
-                <h4 class="font-bold text-yellow-800">Planning non généré</h4>
+                <h4 class="font-bold text-yellow-800">Planning {{ cohort.schedule_generated|yesno:"généré,non généré" }}</h4>
                 <p class="text-sm text-yellow-700 mt-1">
-                    Vous devez d'abord créer les créneaux hebdomadaires (WeeklySchedule) depuis l'admin,
-                    puis cliquer sur le bouton ci-contre pour générer automatiquement toutes les séances.
+                    Assurez-vous d'avoir des créneaux hebdomadaires (WeeklySchedule). Vous pouvez générer le planning si besoin.
                 </p>
+                {% if cohort.schedule_generated and not sessions.exists %}
+                    <p class="text-xs text-yellow-700 mt-1">Planning marqué généré mais aucune séance : relancez la génération.</p>
+                {% else %}
+                    <p class="text-xs text-yellow-700 mt-1">Pas encore généré : lancez la création des séances.</p>
+                {% endif %}
             </div>
             <form method="post" action="{% url 'academics:generate_sessions' cohort.id %}">
                 {% csrf_token %}
@@ -118,11 +183,20 @@
 
     <!-- Calendrier des Séances -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <h3 class="font-bold text-gray-700">Calendrier des Séances</h3>
-            <a href="{% url 'academics:list' %}" class="text-sm text-indigo-600 hover:text-indigo-800">
-                Retour à la liste
-            </a>
+            <div class="flex flex-wrap gap-2">
+                <a href="{% url 'documents:download_cohort_attendance' cohort.id %}"
+                   class="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition shadow-sm">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Liste de Présence
+                </a>
+                <a href="{% url 'academics:list' %}" class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center px-2">
+                    Retour à la liste
+                </a>
+            </div>
         </div>
 
         {% if sessions.exists %}
@@ -145,7 +219,15 @@
                         {{ session.date|date:"l d/m/Y" }}
                     </td>
                     <td class="px-6 py-4 font-bold text-gray-700 whitespace-nowrap">
-                        {{ session.start_time|time:"H:i" }} - {{ session.end_time|time:"H:i" }}
+                        {{ session.display_start_time|time:"H:i" }} - {{ session.display_end_time|time:"H:i" }}
+                        {% if session.is_ramadan %}
+                        <span class="inline-block ml-2 px-2 py-0.5 bg-amber-100 text-amber-800 text-[11px] font-bold rounded">Ramadan</span>
+                        {% endif %}
+                        {% if session.duration_override_minutes %}
+                        <span class="inline-block ml-2 px-2 py-0.5 bg-orange-100 text-orange-800 text-xs font-bold rounded">
+                            ⏱️ {{ session.duration_hours }}h
+                        </span>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4">
                         <span class="inline-block px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
@@ -154,6 +236,11 @@
                     </td>
                     <td class="px-6 py-4 text-sm text-gray-600">
                         {{ session.teacher.first_name }} {{ session.teacher.last_name }}
+                        {% if session.teacher.id != cohort.teacher.id %}
+                        <span class="inline-block ml-2 px-2 py-0.5 bg-orange-100 text-orange-800 text-xs font-medium rounded">
+                            Remplaçant
+                        </span>
+                        {% endif %}
                     </td>
                     <td class="px-6 py-4 text-center">
                         {% if session.status == 'SCHEDULED' %}
@@ -166,12 +253,33 @@
                             <span class="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">Reporté</span>
                         {% endif %}
                     </td>
-                    <td class="px-6 py-4 text-right">
+                    <td class="px-6 py-4 text-right space-x-2">
                         {% if session.status == 'SCHEDULED' %}
                             <a href="{% url 'academics:session_detail' session.id %}"
                                class="text-indigo-600 hover:text-indigo-900 font-medium text-sm border border-indigo-200 hover:border-indigo-600 px-3 py-1 rounded-lg transition">
                                 Faire l'appel
                             </a>
+                            {% if not user.is_teacher %}
+                            <a href="{% url 'academics:change_session_teacher' session.id %}"
+                               class="text-purple-600 hover:text-purple-900 font-medium text-sm border border-purple-200 hover:border-purple-600 px-3 py-1 rounded-lg transition">
+                                Changer Prof
+                            </a>
+                            {% endif %}
+                            <form method="post" action="{% url 'academics:postpone_session' session.id %}" class="inline" 
+                                  onsubmit="return confirm('Êtes-vous sûr de vouloir reporter cette séance ?\n\nUne séance de rattrapage sera automatiquement ajoutée à la fin du planning.');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-amber-700 hover:text-amber-900 font-medium text-sm border border-amber-200 hover:border-amber-500 px-3 py-1 rounded-lg transition">
+                                    Reporter
+                                </button>
+                            </form>
+                        {% elif session.status == 'POSTPONED' %}
+                            <form method="post" action="{% url 'academics:cancel_postpone' session.id %}" class="inline"
+                                  onsubmit="return confirm('Annuler le report ?\n\nLa séance sera remise en Prévu et le rattrapage supprimé.');">
+                                {% csrf_token %}
+                                <button type="submit" class="text-blue-600 hover:text-blue-900 font-medium text-sm border border-blue-200 hover:border-blue-500 px-3 py-1 rounded-lg transition">
+                                    Annuler le report
+                                </button>
+                            </form>
                         {% elif session.status == 'COMPLETED' %}
                             <a href="{% url 'academics:session_detail' session.id %}"
                                class="text-gray-500 hover:text-gray-700 font-medium text-sm">

@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load custom_filters %}
 
 {% block title %}Gestion des Groupes{% endblock %}
 
@@ -20,6 +21,45 @@
     </div>
 
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="px-4 py-3 border-b border-gray-100 bg-gray-50">
+            <form method="get" class="flex flex-wrap gap-2 items-end">
+                <div>
+                    <label class="block text-xs text-gray-600">Année</label>
+                    <select name="year" class="border rounded px-2 py-1 text-sm">
+                        <option value="">Toutes</option>
+                        {% for y in years %}
+                            <option value="{{ y.id }}" {% if year_filter|default:'' == y.id|stringformat:'s' %}selected{% endif %}>{{ y.label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600">Statut</label>
+                    <select name="status" class="border rounded px-2 py-1 text-sm">
+                        <option value="" {% if not status_filter %}selected{% endif %}>Tous</option>
+                        <option value="ongoing" {% if status_filter == 'ongoing' %}selected{% endif %}>En cours</option>
+                        <option value="finished" {% if status_filter == 'finished' %}selected{% endif %}>Terminés</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600">Modalité</label>
+                    <select name="modality" class="border rounded px-2 py-1 text-sm">
+                        <option value="" {% if not modality_filter %}selected{% endif %}>Toutes</option>
+                        <option value="IN_PERSON" {% if modality_filter == 'IN_PERSON' %}selected{% endif %}>Présentiel</option>
+                        <option value="ONLINE" {% if modality_filter == 'ONLINE' %}selected{% endif %}>En ligne</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600">Individuel</label>
+                    <select name="individual" class="border rounded px-2 py-1 text-sm">
+                        <option value="" {% if individual_filter == '' %}selected{% endif %}>Tous</option>
+                        <option value="1" {% if individual_filter == '1' %}selected{% endif %}>Oui</option>
+                        <option value="0" {% if individual_filter == '0' %}selected{% endif %}>Non</option>
+                    </select>
+                </div>
+                <button class="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm">Filtrer</button>
+                <a href="{% url 'academics:list' %}" class="px-3 py-1.5 border rounded text-sm">Réinitialiser</a>
+            </form>
+        </div>
 
         <!-- Version mobile (format carte) -->
         <div class="md:hidden divide-y divide-gray-100">
@@ -43,6 +83,14 @@
                         <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
                             {{ cohort.level }}
                         </span>
+                        {% if cohort.modality == 'ONLINE' %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">En ligne</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-700 border border-teal-100">Présentiel</span>
+                        {% endif %}
+                        {% if cohort.is_individual %}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Individuel</span>
+                        {% endif %}
                     </div>
 
                     <div class="flex items-center gap-2 pt-1">
@@ -51,7 +99,7 @@
                         </div>
                         <div>
                             <div class="text-gray-700">{{ cohort.teacher.first_name }} {{ cohort.teacher.last_name }}</div>
-                            <div class="text-xs text-gray-400">{{ cohort.teacher_hourly_rate }} DA/h</div>
+                            <div class="text-xs text-gray-400">{{ cohort.teacher_hourly_rate|format_da }} DA/h</div>
                         </div>
                     </div>
 
@@ -113,6 +161,14 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">
                                 {{ cohort.level }}
                             </span>
+                            {% if cohort.modality == 'ONLINE' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">En ligne</span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-teal-50 text-teal-700 border border-teal-100">Présentiel</span>
+                            {% endif %}
+                            {% if cohort.is_individual %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-rose-50 text-rose-700 border border-rose-100">Individuel</span>
+                            {% endif %}
                         </div>
                     </td>
                     <td class="p-3 lg:p-4 text-xs lg:text-sm text-gray-700">
@@ -122,13 +178,16 @@
                             </div>
                             <div>
                                 {{ cohort.teacher.first_name }} {{ cohort.teacher.last_name }}
-                                <div class="text-xs text-gray-400">{{ cohort.teacher_hourly_rate }} DA/h</div>
+                                <div class="text-xs text-gray-400">{{ cohort.teacher_hourly_rate|format_da }} DA/h</div>
                             </div>
                         </div>
                     </td>
                     <td class="p-3 lg:p-4 text-xs lg:text-sm text-gray-600">
                         <div>{{ cohort.start_date|date:"d/m/Y" }}</div>
                         <div class="text-xs text-gray-400">au {{ cohort.end_date|date:"d/m/Y" }}</div>
+                        {% if cohort.is_finished %}
+                        <div class="mt-1"><span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-[10px] font-bold">Terminé</span></div>
+                        {% endif %}
                     </td>
                     <td class="p-3 lg:p-4 text-center">
                         <span class="inline-flex items-center justify-center w-8 h-8 lg:w-10 lg:h-10 rounded-full bg-green-50 text-green-700 font-bold border border-green-100 text-xs lg:text-sm">
@@ -144,6 +203,9 @@
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-50 text-yellow-700 border border-yellow-100">
                                 En attente
                             </span>
+                        {% endif %}
+                        {% if cohort.is_finished %}
+                        <div class="mt-1"><span class="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold border border-emerald-100">Terminé</span></div>
                         {% endif %}
                     </td>
                     <td class="p-3 lg:p-4 text-right">

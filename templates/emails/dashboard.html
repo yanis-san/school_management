@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+
+{% block title %}Envoi d'Emails Groupés{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">📧 Envoi d'Emails Groupés</h1>
+            <p class="text-gray-500 text-sm">Envoyer des emails à vos étudiants par cohort ou globalement</p>
+        </div>
+    </div>
+
+    <!-- Formulaire d'envoi -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Nouveau Email</h2>
+        
+        <form method="post" action="{% url 'emails:send' %}" enctype="multipart/form-data" class="space-y-4">
+            {% csrf_token %}
+            
+            <!-- Type de destinataires -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Destinataires *</label>
+                <select name="recipient_type" id="recipient_type" required class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">-- Choisir --</option>
+                    <option value="COHORT">Cohort Spécifique</option>
+                    <option value="ALL_ACTIVE">Tous les Étudiants Actifs</option>
+                    <option value="ALL_STUDENTS">Tous les Étudiants (Actifs + Inactifs)</option>
+                </select>
+            </div>
+
+            <!-- Sélection cohort (visible si COHORT) -->
+            <div id="cohort_selector" style="display: none;">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Cohort *</label>
+                <select name="cohort_id" id="cohort_id" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    <option value="">-- Sélectionner un cohort --</option>
+                    {% for cohort in cohorts %}
+                        <option value="{{ cohort.id }}">{{ cohort.name }} ({{ cohort.subject.name }} - {{ cohort.level.name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Filtrer actifs seulement (pour ALL_STUDENTS) -->
+            <div id="active_only_checkbox" style="display: none;">
+                <label class="flex items-center space-x-2">
+                    <input type="checkbox" name="active_only" value="true" checked class="form-checkbox h-5 w-5 text-indigo-600">
+                    <span class="text-sm text-gray-700">Uniquement les étudiants actifs</span>
+                </label>
+            </div>
+
+            <!-- Aperçu des destinataires -->
+            <div id="recipients_preview" class="bg-blue-50 border border-blue-200 rounded-lg p-4" style="display: none;">
+                <p class="text-sm font-semibold text-blue-800 mb-2">Destinataires :</p>
+                <p class="text-sm text-blue-700" id="recipients_count">-</p>
+                <button type="button" onclick="toggleEmailList()" class="text-xs text-blue-600 underline mt-2">Voir les emails</button>
+                <div id="email_list" class="mt-2 text-xs text-blue-600 max-h-32 overflow-y-auto bg-white p-2 rounded border border-blue-200" style="display: none;"></div>
+            </div>
+
+            <!-- Objet -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Objet de l'email *</label>
+                <input type="text" name="subject" required maxlength="255" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Ex: Nouvelle session de cours disponible">
+            </div>
+
+            <!-- Message -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Message *</label>
+                <textarea name="message" required rows="8" class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="Écrivez votre message ici..."></textarea>
+            </div>
+
+            <!-- Pièce jointe -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Pièce jointe (optionnel)</label>
+                <input type="file" name="attachment" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm">
+                <p class="text-xs text-gray-500 mt-1">Formats acceptés: PDF, Word, Images</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button type="button" onclick="window.location.reload()" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50">Annuler</button>
+                <button type="submit" class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold shadow-sm">Envoyer</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Historique des campagnes -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Historique des Envois</h2>
+        
+        {% if recent_campaigns %}
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-600 text-xs uppercase">
+                        <tr>
+                            <th class="p-3 text-left">Date</th>
+                            <th class="p-3 text-left">Titre</th>
+                            <th class="p-3 text-left">Type</th>
+                            <th class="p-3 text-left">Cohort</th>
+                            <th class="p-3 text-left">Destinataires</th>
+                            <th class="p-3 text-left">Statut</th>
+                            <th class="p-3 text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        {% for campaign in recent_campaigns %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="p-3">{{ campaign.sent_at|date:"d/m/Y H:i" }}</td>
+                            <td class="p-3 font-medium">{{ campaign.title }}</td>
+                            <td class="p-3">
+                                <span class="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700">{{ campaign.get_recipient_type_display }}</span>
+                            </td>
+                            <td class="p-3">{{ campaign.cohort.name|default:"-" }}</td>
+                            <td class="p-3">{{ campaign.total_recipients }}</td>
+                            <td class="p-3">
+                                {% if campaign.success_count > 0 %}
+                                    <span class="text-xs px-2 py-1 rounded bg-green-100 text-green-700">✓ {{ campaign.success_count }} envoyés</span>
+                                {% endif %}
+                                {% if campaign.failure_count > 0 %}
+                                    <span class="text-xs px-2 py-1 rounded bg-red-100 text-red-700">✗ {{ campaign.failure_count }} échecs</span>
+                                {% endif %}
+                            </td>
+                            <td class="p-3 text-right">
+                                <a href="{% url 'emails:campaign_detail' campaign.id %}" class="text-indigo-600 hover:text-indigo-900 text-xs">Voir</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="text-gray-500 text-sm text-center py-8">Aucun email envoyé pour le moment.</p>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    const recipientTypeSelect = document.getElementById('recipient_type');
+    const cohortSelector = document.getElementById('cohort_selector');
+    const cohortIdSelect = document.getElementById('cohort_id');
+    const activeOnlyCheckbox = document.getElementById('active_only_checkbox');
+    const recipientsPreview = document.getElementById('recipients_preview');
+    const recipientsCount = document.getElementById('recipients_count');
+    const emailList = document.getElementById('email_list');
+
+    recipientTypeSelect.addEventListener('change', function() {
+        const value = this.value;
+        
+        // Afficher/masquer le sélecteur de cohort
+        if (value === 'COHORT') {
+            cohortSelector.style.display = 'block';
+            cohortIdSelect.required = true;
+            activeOnlyCheckbox.style.display = 'none';
+        } else {
+            cohortSelector.style.display = 'none';
+            cohortIdSelect.required = false;
+            activeOnlyCheckbox.style.display = value === 'ALL_STUDENTS' ? 'block' : 'none';
+        }
+        
+        // Charger aperçu
+        if (value) {
+            loadRecipients();
+        } else {
+            recipientsPreview.style.display = 'none';
+        }
+    });
+
+    cohortIdSelect.addEventListener('change', loadRecipients);
+
+    function loadRecipients() {
+        const type = recipientTypeSelect.value;
+        const cohortId = cohortIdSelect.value;
+        
+        let url = '';
+        if (type === 'COHORT' && cohortId) {
+            url = `/emails/api/cohort/${cohortId}/recipients/?active_only=true`;
+        } else if (type === 'ALL_ACTIVE') {
+            url = '/emails/api/all-recipients/?active_only=true';
+        } else if (type === 'ALL_STUDENTS') {
+            url = '/emails/api/all-recipients/?active_only=false';
+        } else {
+            return;
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                recipientsPreview.style.display = 'block';
+                recipientsCount.textContent = `${data.count} email(s) trouvé(s) sur ${data.total_students} étudiant(s)`;
+                
+                // Stocker les emails pour l'affichage
+                window.currentEmails = data.emails;
+            })
+            .catch(error => {
+                console.error('Erreur:', error);
+                recipientsPreview.style.display = 'none';
+            });
+    }
+
+    function toggleEmailList() {
+        if (emailList.style.display === 'none') {
+            emailList.style.display = 'block';
+            emailList.innerHTML = window.currentEmails ? window.currentEmails.join('<br>') : 'Aucun email';
+        } else {
+            emailList.style.display = 'none';
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,326 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block title %}Prospects{% endblock %}
+{% block extra_css %}
+<style>
+  .dropzone { border: 2px dashed #cbd5e1; }
+  .dropzone.dragover { border-color: #3b82f6; background-color: #eff6ff; }
+  .table-fixed thead th { position: sticky; top: 0; background: #fff; z-index: 1; }
+  .form-input { border: 1px solid #e2e8f0; }
+  .form-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(59,130,246,.3); border-color: #3b82f6; }
+  .badge { padding: 2px 8px; border-radius: 9999px; font-size: 12px; }
+  .badge-green { background: #dcfce7; color: #166534; }
+  .badge-amber { background: #fef3c7; color: #92400e; }
+  .btn { padding: 6px 10px; border-radius: 6px; font-size: 14px; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-muted { background: #e5e7eb; color: #374151; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="px-4 py-4">
+  <div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-semibold">Prospects</h1>
+    <div class="flex items-center gap-3">
+      <div class="text-sm text-slate-500">Total: {{ total }} • Convertis: {{ converted }} • À convertir: {{ not_converted }}</div>
+      <button hx-get="{% url 'prospects:add_prospect' %}" hx-target="body" hx-swap="beforeend"
+              class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium">
+        + Ajouter un prospect
+      </button>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow p-4 mb-6">
+    <h2 class="font-medium mb-3">Importer un fichier CSV</h2>
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div class="flex-1">
+        <div id="dropzone" class="dropzone rounded-md p-6 text-center text-slate-500">
+          Glissez-déposez votre CSV ici ou cliquez pour choisir
+          <input id="fileInput" type="file" accept=".csv" class="hidden" />
+        </div>
+        <div id="uploadStatus" class="mt-2 text-sm"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-lg shadow mb-6">
+    <form method="get" class="p-4 border-b border-slate-100">
+      <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
+        <input name="q" value="{{ q }}" placeholder="Rechercher (nom, email, téléphone)" class="form-input px-3 py-2 rounded col-span-1 md:col-span-2" />
+
+        <select name="converted" class="form-input px-3 py-2 rounded">
+          <option value="" {% if not f_converted %}selected{% endif %}>Tous</option>
+          <option value="yes" {% if f_converted == 'yes' %}selected{% endif %}>Convertis</option>
+          <option value="no" {% if f_converted == 'no' %}selected{% endif %}>À convertir</option>
+        </select>
+
+        <select name="source" class="form-input px-3 py-2 rounded">
+          <option value="">Source</option>
+          {% for s in distinct_sources %}
+            <option value="{{ s }}" {% if f_source == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="activity_type" class="form-input px-3 py-2 rounded">
+          <option value="">Activité</option>
+          {% for s in distinct_activities %}
+            <option value="{{ s }}" {% if f_activity_type == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+
+        <select name="level" class="form-input px-3 py-2 rounded">
+          <option value="">Niveau</option>
+          {% for s in distinct_levels %}
+            <option value="{{ s }}" {% if f_level == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+
+        <div class="flex gap-2">
+          <input type="date" name="start" value="{{ f_start }}" class="form-input px-3 py-2 rounded w-1/2" />
+          <input type="date" name="end" value="{{ f_end }}" class="form-input px-3 py-2 rounded w-1/2" />
+        </div>
+      </div>
+      <div class="mt-3 flex items-center gap-2">
+        <select name="per_page" class="form-input px-3 py-2 rounded">
+          <option value="25" {% if per_page == 25 %}selected{% endif %}>25/page</option>
+          <option value="50" {% if per_page == 50 %}selected{% endif %}>50/page</option>
+          <option value="100" {% if per_page == 100 %}selected{% endif %}>100/page</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Filtrer</button>
+        <a href="?" class="btn btn-muted">Réinitialiser</a>
+      </div>
+    </form>
+
+    <div class="overflow-auto">
+      <table class="w-full table-auto">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Nom</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Contact</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Niveau</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Activité</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Source</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Statut</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Créé le</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in prospects %}
+          <tr class="border-t">
+            <td class="px-4 py-2">
+              <div class="font-medium">{{ p.first_name }} {{ p.last_name }}</div>
+            </td>
+            <td class="px-4 py-2 text-sm text-slate-600">
+              {% if p.email %}{{ p.email }}{% endif %}{% if p.phone %}{% if p.email %} • {% endif %}{{ p.phone }}{% endif %}
+            </td>
+            <td class="px-4 py-2 text-sm">{{ p.level|default:'—' }}</td>
+            <td class="px-4 py-2 text-sm">{{ p.activity_type|default:'—' }}</td>
+            <td class="px-4 py-2 text-sm">{{ p.source|default:'—' }}</td>
+            <td class="px-4 py-2">
+              {% if p.converted %}
+                <span class="badge badge-green">Converti</span>
+              {% else %}
+                <span class="badge badge-amber">À convertir</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-2 text-sm text-slate-600">{{ p.created_at|date:'d/m/Y H:i' }}</td>
+            <td class="px-4 py-2">
+              <div class="flex items-center gap-1 flex-nowrap">
+                {% if not p.converted %}
+                  <button type="button" class="px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700 whitespace-nowrap" onclick="convertProspect({{ p.id }})">Convertir</button>
+                {% else %}
+                  <button type="button" class="px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700 whitespace-nowrap" onclick="cancelConversion({{ p.id }})">Annuler</button>
+                {% endif %}
+                <button hx-get="{% url 'prospects:edit_prospect' p.id %}" hx-target="body" hx-swap="beforeend"
+                        class="px-2 py-1 bg-amber-500 text-white rounded text-xs hover:bg-amber-600" title="Modifier">
+                  ✏️
+                </button>
+                <button onclick="deleteProspect({{ p.id }})"
+                        class="px-2 py-1 bg-red-500 text-white rounded text-xs hover:bg-red-600" title="Supprimer">
+                  🗑️
+                </button>
+              </div>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="8" class="px-4 py-6 text-center text-slate-500">Aucun prospect trouvé.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page_obj.paginator.num_pages > 1 %}
+    <div class="flex items-center justify-between px-4 py-3 border-t">
+      <div class="text-sm text-slate-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
+      <div class="flex items-center gap-2">
+        {% if page_obj.has_previous %}
+          <a class="btn btn-muted" href="?page={{ page_obj.previous_page_number }}&per_page={{ per_page }}&q={{ q }}&converted={{ f_converted }}&source={{ f_source }}&activity_type={{ f_activity_type }}&level={{ f_level }}&start={{ f_start }}&end={{ f_end }}">Précédent</a>
+        {% else %}
+          <button class="btn btn-muted" disabled>Précédent</button>
+        {% endif %}
+        {% if page_obj.has_next %}
+          <a class="btn btn-muted" href="?page={{ page_obj.next_page_number }}&per_page={{ per_page }}&q={{ q }}&converted={{ f_converted }}&source={{ f_source }}&activity_type={{ f_activity_type }}&level={{ f_level }}&start={{ f_start }}&end={{ f_end }}">Suivant</a>
+        {% else %}
+          <button class="btn btn-muted" disabled>Suivant</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const uploadStatus = document.getElementById('uploadStatus');
+
+    if (!dropzone || !fileInput || !uploadStatus) {
+      console.error('Elements not found for CSV upload');
+      return;
+    }
+
+    function showStatus(msg, cls) {
+      uploadStatus.className = `mt-2 text-sm ${cls||''}`;
+      uploadStatus.textContent = msg;
+    }
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', (e) => {
+      dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file) uploadCSV(file);
+    });
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) uploadCSV(file);
+    });
+
+    async function uploadCSV(file) {
+      showStatus('Import en cours...', 'text-slate-500');
+      const formData = new FormData();
+      formData.append('file', file);
+      try {
+        const res = await fetch('{% url "prospects:upload_csv" %}', {
+          method: 'POST',
+          headers: { 'X-CSRFToken': getCookie('csrftoken') },
+          body: formData,
+          credentials: 'same-origin',
+        });
+        if (!res.ok) {
+          const txt = await res.text();
+          showStatus('Erreur import CSV', 'text-red-600');
+          console.error('Upload error', res.status, txt);
+          return;
+        }
+        const data = await res.json();
+        showStatus(`✅ ${data.created} nouveau(x) • ${data.skipped} déjà existant(s) • ${data.processed} traité(s)`,'text-green-700');
+        setTimeout(() => window.location.reload(), 800);
+      } catch (err) {
+        console.error(err);
+        showStatus('Erreur réseau pendant l\'import', 'text-red-600');
+      }
+    }
+  });
+
+  // Fonction globale pour convertir un prospect (appelée par onclick)
+  window.convertProspect = async function(id) {
+    try {
+      // Marquer comme converti d'abord
+      const convertRes = await fetch(`{% url 'prospects:convert' 0 %}`.replace('0', id), {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        credentials: 'same-origin',
+      });
+      
+      if (!convertRes.ok) {
+        alert('Erreur lors de la conversion');
+        return;
+      }
+      
+      // Précharger les données du prospect
+      const res = await fetch(`{% url 'prospects:get_prospect_data' 0 %}`.replace('0', id));
+      if (!res.ok) return;
+      const data = await res.json();
+      sessionStorage.setItem('prospect_prefill', JSON.stringify({
+        first_name: data.first_name || '',
+        last_name: data.last_name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        birth_date: data.birth_date || '',
+        motivation: data.message || ''
+      }));
+      
+      // Ouvrir le formulaire d'inscription
+      if (window.htmx) {
+        htmx.ajax('GET', '{% url "students:enrollment_form" %}', { target: 'body', swap: 'beforeend' });
+      } else {
+        window.location.href = '{% url "students:enrollment_form" %}';
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  // Fonction globale pour annuler une conversion
+  window.cancelConversion = async function(id) {
+    if (!confirm('Êtes-vous sûr de vouloir annuler cette conversion ? L\'étudiant correspondant sera supprimé.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`{% url 'prospects:cancel_conversion' 0 %}`.replace('0', id), {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        credentials: 'same-origin',
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert('Erreur lors de l\'annulation');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erreur réseau');
+    }
+  };
+
+  // Fonction globale pour supprimer un prospect avec confirmation
+  window.deleteProspect = async function(id) {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer ce prospect ?')) {
+      return;
+    }
+    try {
+      const res = await fetch(`{% url 'prospects:delete_prospect' 0 %}`.replace('0', id), {
+        method: 'POST',
+        headers: { 'X-CSRFToken': getCookie('csrftoken') },
+        credentials: 'same-origin',
+      });
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert('Erreur lors de la suppression');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Erreur réseau');
+    }
+  };
+</script>
+{% endblock %}

@@ -47,12 +47,19 @@ def generate_documents(request, cohort_id):
         suivi_buffer.seek(0)
         zip_file.writestr(f"{teacher_path}/Suivi_Seances.docx", suivi_buffer.read())
 
-        # 2. Feuille d'Émargement
+        # 2. Feuille d'Émargement (vierge pour signatures)
         emargement_doc = generate_emargement(cohort)
         emargement_buffer = BytesIO()
         emargement_doc.save(emargement_buffer)
         emargement_buffer.seek(0)
-        zip_file.writestr(f"{teacher_path}/Liste_Presence.docx", emargement_buffer.read())
+        zip_file.writestr(f"{teacher_path}/Feuille_Emargement_Vierge.docx", emargement_buffer.read())
+
+        # 3. Liste de Présence avec statuts réels
+        attendance_doc = generate_attendance_with_status(cohort)
+        attendance_buffer = BytesIO()
+        attendance_doc.save(attendance_buffer)
+        attendance_buffer.seek(0)
+        zip_file.writestr(f"{teacher_path}/Liste_Presence_Statuts_Reels.docx", attendance_buffer.read())
 
         # === PACK ÉTUDIANTS ===
         student_path = f"{base_path}/Pack_Etudiants"
@@ -72,6 +79,54 @@ def generate_documents(request, cohort_id):
     zip_buffer.seek(0)
     response = HttpResponse(zip_buffer.read(), content_type='application/zip')
     filename = f"Documents_{cohort.subject.name}_{cohort.name}.zip"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response
+
+
+def download_session_attendance(request, session_id):
+    """Télécharge la liste de présence pour UNE séance spécifique"""
+    from academics.models import CourseSession
+
+    session = get_object_or_404(CourseSession, id=session_id)
+
+    # Générer le document
+    doc = generate_session_attendance(session)
+
+    # Créer un buffer
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+
+    # Préparer la réponse HTTP
+    response = HttpResponse(
+        buffer.read(),
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    filename = f"Presence_{session.cohort.name}_{session.date.strftime('%Y-%m-%d')}.docx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response
+
+
+def download_cohort_attendance(request, cohort_id):
+    """Télécharge la liste de présence complète d'un groupe avec statuts réels"""
+    cohort = get_object_or_404(Cohort, id=cohort_id)
+
+    # Générer le document
+    doc = generate_attendance_with_status(cohort)
+
+    # Créer un buffer
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+
+    # Préparer la réponse HTTP
+    response = HttpResponse(
+        buffer.read(),
+        content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    )
+    filename = f"Liste_Presence_Statuts_{cohort.subject.name}_{cohort.name}.docx"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     return response
@@ -159,7 +214,7 @@ def generate_suivi_seances(cohort):
 
 
 def generate_emargement(cohort):
-    """Génère la Feuille d'Émargement (présence)"""
+    """Génère la Feuille d'Émargement (présence) - VIERGE pour signatures"""
     doc = Document()
 
     # Orientation paysage
@@ -222,6 +277,199 @@ def generate_emargement(cohort):
         # Cases vides pour signatures
         for session_idx in range(num_sessions):
             row.cells[session_idx + 2].text = ""
+
+    return doc
+
+
+def generate_attendance_with_status(cohort):
+    """Génère la Liste de Présence avec les VRAIS statuts enregistrés"""
+    from students.models import Attendance
+
+    doc = Document()
+
+    # Orientation paysage
+    section = doc.sections[0]
+    section.page_width = Inches(11.69)  # A4 paysage
+    section.page_height = Inches(8.27)
+
+    # En-tête
+    heading = doc.add_heading(f"Liste de Présence (Statuts Réels)", 0)
+    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Infos du groupe
+    info_para = doc.add_paragraph()
+    info_para.add_run(f"Groupe: ").bold = True
+    info_para.add_run(f"{cohort.name} - {cohort.subject.name}\n")
+    info_para.add_run(f"Professeur: ").bold = True
+    info_para.add_run(f"{cohort.teacher.get_full_name()}\n")
+
+    doc.add_paragraph()
+
+    # Récupérer étudiants et séances
+    enrollments = Enrollment.objects.filter(cohort=cohort).select_related('student').order_by('student__last_name')
+    sessions = CourseSession.objects.filter(cohort=cohort).order_by('date', 'start_time')
+
+    if not enrollments.exists():
+        doc.add_paragraph("Aucun étudiant inscrit dans ce groupe.")
+        return doc
+
+    if not sessions.exists():
+        doc.add_paragraph("Aucune séance prévue pour ce groupe.")
+        return doc
+
+    # Créer le tableau (Étudiants x Dates)
+    num_students = enrollments.count()
+    num_sessions = sessions.count()
+
+    table = doc.add_table(rows=num_students + 1, cols=num_sessions + 2)
+    table.style = 'Light Grid Accent 1'
+
+    # En-tête: première colonne = N°, deuxième = Nom, suivantes = Dates
+    header_row = table.rows[0]
+    header_row.cells[0].text = "N°"
+    header_row.cells[1].text = "Nom de l'étudiant"
+
+    for idx, session in enumerate(sessions):
+        cell = header_row.cells[idx + 2]
+        cell.text = session.date.strftime('%d/%m')
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.font.size = Pt(8)
+                run.font.bold = True
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Récupérer toutes les présences en une seule requête
+    attendances = Attendance.objects.filter(
+        session__cohort=cohort
+    ).select_related('student', 'session')
+
+    # Créer un dictionnaire pour accès rapide: {(student_id, session_id): status}
+    attendance_dict = {
+        (att.student.id, att.session.id): att.status
+        for att in attendances
+    }
+
+    # Symboles pour les statuts
+    STATUS_SYMBOLS = {
+        'PRESENT': '✓',
+        'ABSENT': '✗',
+        'LATE': '⌚',
+        'EXCUSED': 'E',
+    }
+
+    # Lignes des étudiants
+    for student_idx, enrollment in enumerate(enrollments):
+        row = table.rows[student_idx + 1]
+        row.cells[0].text = str(student_idx + 1)
+        row.cells[1].text = f"{enrollment.student.last_name} {enrollment.student.first_name}"
+
+        # Remplir avec les statuts réels
+        for session_idx, session in enumerate(sessions):
+            status = attendance_dict.get((enrollment.student.id, session.id), 'PRESENT')
+            symbol = STATUS_SYMBOLS.get(status, '?')
+
+            cell = row.cells[session_idx + 2]
+            cell.text = symbol
+
+            # Coloriser selon le statut
+            for paragraph in cell.paragraphs:
+                for run in paragraph.runs:
+                    run.font.size = Pt(10)
+                    run.font.bold = True
+                    if status == 'PRESENT':
+                        run.font.color.rgb = RGBColor(0, 128, 0)  # Vert
+                    elif status == 'ABSENT':
+                        run.font.color.rgb = RGBColor(255, 0, 0)  # Rouge
+                    elif status == 'LATE':
+                        run.font.color.rgb = RGBColor(255, 165, 0)  # Orange
+                    elif status == 'EXCUSED':
+                        run.font.color.rgb = RGBColor(128, 128, 128)  # Gris
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Légende
+    doc.add_paragraph()
+    legend = doc.add_paragraph()
+    legend.add_run("Légende: ").bold = True
+    legend.add_run("✓ = Présent | ✗ = Absent | ⌚ = En Retard | E = Excusé")
+
+    return doc
+
+
+def generate_session_attendance(session):
+    """Génère la liste de présence pour UNE séance spécifique"""
+    from students.models import Attendance
+
+    doc = Document()
+
+    # En-tête
+    heading = doc.add_heading(f"Liste de Présence - Séance", 0)
+    heading.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # Infos de la séance
+    info_para = doc.add_paragraph()
+    info_para.add_run(f"Groupe: ").bold = True
+    info_para.add_run(f"{session.cohort.name} - {session.cohort.subject.name}\n")
+    info_para.add_run(f"Date: ").bold = True
+    info_para.add_run(f"{session.date.strftime('%d/%m/%Y')}\n")
+    info_para.add_run(f"Horaire: ").bold = True
+    info_para.add_run(f"{session.start_time.strftime('%H:%M')} - {session.end_time.strftime('%H:%M')}\n")
+    info_para.add_run(f"Professeur: ").bold = True
+    info_para.add_run(f"{session.teacher.get_full_name()}\n")
+    info_para.add_run(f"Statut séance: ").bold = True
+    info_para.add_run(f"{session.get_status_display()}\n")
+
+    doc.add_paragraph()
+
+    # Récupérer les présences pour cette séance
+    attendances = Attendance.objects.filter(session=session).select_related('student').order_by('student__last_name')
+
+    if not attendances.exists():
+        doc.add_paragraph("Aucune présence enregistrée pour cette séance.")
+        return doc
+
+    # Créer le tableau (4 colonnes : N°, Étudiant, Statut, Contact)
+    table = doc.add_table(rows=attendances.count() + 1, cols=4)
+    table.style = 'Light Grid Accent 1'
+
+    # En-tête
+    header_row = table.rows[0]
+    header_row.cells[0].text = "N°"
+    header_row.cells[1].text = "Étudiant"
+    header_row.cells[2].text = "Statut"
+    header_row.cells[3].text = "Contact"
+
+    for cell in header_row.cells:
+        for paragraph in cell.paragraphs:
+            for run in paragraph.runs:
+                run.font.bold = True
+
+    # Remplir les données
+    for idx, attendance in enumerate(attendances):
+        row = table.rows[idx + 1]
+        row.cells[0].text = str(idx + 1)
+        row.cells[1].text = f"{attendance.student.last_name} {attendance.student.first_name}"
+        row.cells[2].text = attendance.get_status_display()
+        # Affiche le téléphone principal (ou vide si absent)
+        row.cells[3].text = attendance.student.phone or ""
+
+        # Coloriser le statut
+        status_cell = row.cells[2]
+        for paragraph in status_cell.paragraphs:
+            for run in paragraph.runs:
+                if attendance.status == 'PRESENT':
+                    run.font.color.rgb = RGBColor(0, 128, 0)  # Vert
+                elif attendance.status == 'ABSENT':
+                    run.font.color.rgb = RGBColor(255, 0, 0)  # Rouge
+                elif attendance.status == 'LATE':
+                    run.font.color.rgb = RGBColor(255, 165, 0)  # Orange
+                elif attendance.status == 'EXCUSED':
+                    run.font.color.rgb = RGBColor(128, 128, 128)  # Gris
+
+    # Note de séance
+    if session.note:
+        doc.add_paragraph()
+        note_heading = doc.add_heading("Notes de séance:", level=2)
+        doc.add_paragraph(session.note)
 
     return doc
 

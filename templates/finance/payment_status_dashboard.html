@@ -1,0 +1,208 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Tableau de Bord Paiements{% endblock %}
+
+{% block content %}
+<div class="container mx-auto p-6 bg-gray-50 min-h-screen">
+    <!-- Titre -->
+    <div class="mb-8">
+        <h1 class="text-4xl font-bold text-gray-900">💰 Suivi des Paiements</h1>
+        <p class="text-gray-600 mt-2">Vue synthétique de tous les paiements étudiants avec filtres</p>
+    </div>
+
+    <!-- Filtres -->
+    <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <form method="get" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Cohort -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Cohort</label>
+                <select name="cohort" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">-- Tous les cohorts --</option>
+                    {% for cohort in cohorts %}
+                    <option value="{{ cohort.id }}" {% if selected_cohort|stringformat:"s" == cohort.id|stringformat:"s" %}selected{% endif %}>
+                        {{ cohort.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Modality -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Modalité</label>
+                <select name="modality" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">-- Toutes les modalités --</option>
+                    <option value="ONLINE" {% if selected_modality == 'ONLINE' %}selected{% endif %}>📱 En ligne</option>
+                    <option value="IN_PERSON" {% if selected_modality == 'IN_PERSON' %}selected{% endif %}>🏫 Présentiel</option>
+                </select>
+            </div>
+
+            <!-- Individual -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Type</label>
+                <select name="individual" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <option value="">-- Tous les types --</option>
+                    <option value="1" {% if selected_individual == '1' %}selected{% endif %}>👤 Individuel</option>
+                    <option value="0" {% if selected_individual == '0' %}selected{% endif %}>👥 Groupe</option>
+                </select>
+            </div>
+
+            <!-- Boutons -->
+            <div class="flex gap-2 items-end">
+                <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg transition">
+                    🔍 Filtrer
+                </button>
+                <a href="{% url 'finance:payment_status_dashboard' %}?export=csv" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg transition text-center">
+                    📥 CSV
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Résumé Statistiques -->
+    <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-blue-500">
+            <p class="text-gray-600 text-sm">Total Tarif</p>
+            <p class="text-2xl font-bold text-blue-600">{{ total_tariff|floatformat:0 }} DA</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+            <p class="text-gray-600 text-sm">Total Payé</p>
+            <p class="text-2xl font-bold text-green-600">{{ total_paid|floatformat:0 }} DA</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+            <p class="text-gray-600 text-sm">Reste à Payer</p>
+            <p class="text-2xl font-bold text-red-600">{{ total_remaining|floatformat:0 }} DA</p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+            <p class="text-gray-600 text-sm">Pourcentage</p>
+            <p class="text-2xl font-bold text-purple-600">
+                {% if total_tariff > 0 %}
+                    {{ percentage_paid }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </p>
+        </div>
+        <div class="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+            <p class="text-gray-600 text-sm">Inscriptions</p>
+            <p class="text-2xl font-bold text-yellow-600">{{ data|length }}</p>
+        </div>
+    </div>
+
+    <!-- Compteurs par Statut -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="bg-red-50 rounded-lg p-4 border border-red-200">
+            <p class="text-red-700 font-semibold">🔴 Impayé</p>
+            <p class="text-3xl font-bold text-red-600">{{ count_unpaid }}</p>
+        </div>
+        <div class="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+            <p class="text-yellow-700 font-semibold">🟡 Partiel</p>
+            <p class="text-3xl font-bold text-yellow-600">{{ count_partial }}</p>
+        </div>
+        <div class="bg-green-50 rounded-lg p-4 border border-green-200">
+            <p class="text-green-700 font-semibold">🟢 Payé</p>
+            <p class="text-3xl font-bold text-green-600">{{ count_paid }}</p>
+        </div>
+    </div>
+
+    <!-- Tableau de Détail -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="w-full">
+            <thead class="bg-gray-100 border-b-2 border-gray-300">
+                <tr>
+                    <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Étudiant</th>
+                    <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Cohort</th>
+                    <th class="px-6 py-3 text-left text-sm font-semibold text-gray-700">Modalité</th>
+                    {% if has_pack_rows %}
+                    <th class="px-6 py-3 text-right text-sm font-semibold text-gray-700">Heures (PACK)</th>
+                    {% endif %}
+                    <th class="px-6 py-3 text-right text-sm font-semibold text-gray-700">Tarif</th>
+                    <th class="px-6 py-3 text-right text-sm font-semibold text-gray-700">Payé</th>
+                    <th class="px-6 py-3 text-right text-sm font-semibold text-gray-700">Reste</th>
+                    <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">Avancement</th>
+                    <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">Statut</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200">
+                {% for item in data %}
+                <tr class="hover:bg-gray-50 transition">
+                    <td class="px-6 py-4">
+                        <div>
+                            <p class="font-semibold text-gray-900">{{ item.student_name }}</p>
+                            <p class="text-xs text-gray-500">{{ item.student_code }}</p>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-gray-800">{{ item.cohort_name }}</td>
+                    <td class="px-6 py-4">
+                        {% if item.modality == "EN LIGNE" %}
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold">📱 En ligne</span>
+                        {% elif item.modality == "PRÉSENTIEL" %}
+                            <span class="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-semibold">🏫 Présentiel</span>
+                        {% endif %}
+                        {% if item.is_individual %}
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 rounded text-xs font-semibold">👤 Indiv.</span>
+                        {% endif %}
+                    </td>
+                    {% if has_pack_rows %}
+                    <td class="px-6 py-4 text-right">
+                        {% if item.pack %}
+                            <span class="font-semibold text-gray-900">{{ item.pack.hours_remaining }} h</span>
+                            <span class="block text-xs text-gray-500">achetées: {{ item.pack.hours_purchased }} • consommées: {{ item.pack.hours_consumed }}</span>
+                        {% else %}
+                            <span class="text-gray-400">-</span>
+                        {% endif %}
+                    </td>
+                    {% endif %}
+                    <td class="px-6 py-4 text-right font-semibold text-gray-900">{{ item.tariff }} DA</td>
+                    <td class="px-6 py-4 text-right">
+                        <span class="text-green-600 font-semibold">{{ item.paid }} DA</span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <span class="text-red-600 font-semibold">{{ item.remaining }} DA</span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-blue-600 h-2.5 rounded-full" style="width: {{ item.percentage_paid }}%"></div>
+                        </div>
+                        <p class="text-xs text-gray-600 text-center mt-1">{{ item.percentage_paid }}%</p>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% if item.status == 'IMPAYÉ' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800">
+                                🔴 IMPAYÉ
+                            </span>
+                        {% elif item.status == 'PARTIEL' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800">
+                                🟡 PARTIEL
+                            </span>
+                        {% elif item.status == 'PAYÉ' %}
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                                🟢 PAYÉ
+                            </span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if has_pack_rows %}9{% else %}8{% endif %}" class="px-6 py-8 text-center text-gray-500">
+                        <p class="text-lg">Aucune inscription ne correspond aux critères</p>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<!-- Scripts utiles -->
+<script>
+// Filtrer le tableau en temps réel (optionnel)
+document.querySelectorAll('select').forEach(select => {
+    select.addEventListener('change', function() {
+        document.querySelector('form').submit();
+    });
+    });
+</script>
+
+{% endblock %}

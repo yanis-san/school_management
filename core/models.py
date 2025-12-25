@@ -34,8 +34,26 @@ class AcademicYear(models.Model):
     start_date = models.DateField()
     end_date = models.DateField()
     is_current = models.BooleanField(default=False)
+    registration_fee_amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=1000,
+        verbose_name="Prix des frais d'inscription (DA)"
+    )
 
     def __str__(self): return self.label
+
+    def save(self, *args, **kwargs):
+        """Garantit qu'une seule année académique est active à la fois."""
+        super_result = super().save(*args, **kwargs)
+        if self.is_current:
+            AcademicYear.objects.exclude(pk=self.pk).update(is_current=False)
+        return super_result
+
+    @classmethod
+    def get_current(cls):
+        """Renvoie l'année académique active, ou None si aucune."""
+        return cls.objects.filter(is_current=True).first()
 
 class Classroom(models.Model):
     name = models.CharField(max_length=50) # Ex: Salle Tokyo
@@ -54,6 +72,11 @@ class TeacherProfile(models.Model):
         ('TRANSFER', 'Virement (CCP/RIB)'),
         ('CHECK', 'Chèque'),
     ]
+    
+    PAYMENT_FREQUENCY = [
+        ('MONTHLY', 'Mensuel (à la fin du mois)'),
+        ('BY_SESSION', 'Par séance (après chaque classe)'),
+    ]
 
     user = models.OneToOneField(
         User,
@@ -68,6 +91,14 @@ class TeacherProfile(models.Model):
         choices=PAYMENT_METHODS,
         default='CASH',
         verbose_name="Méthode de Paiement Préférée"
+    )
+    
+    # Fréquence de paiement
+    payment_frequency = models.CharField(
+        max_length=20,
+        choices=PAYMENT_FREQUENCY,
+        default='MONTHLY',
+        verbose_name="Fréquence de Paiement"
     )
 
     # Informations bancaires

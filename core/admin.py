@@ -13,8 +13,8 @@ class CustomUserAdmin(UserAdmin):
 
 @admin.register(AcademicYear)
 class AcademicYearAdmin(admin.ModelAdmin):
-    list_display = ('label', 'start_date', 'end_date', 'is_current')
-    list_editable = ('is_current',) # Pour changer l'année active rapidement
+    list_display = ('label', 'start_date', 'end_date', 'is_current', 'registration_fee_amount')
+    list_editable = ('is_current', 'registration_fee_amount')  # Pour changer l'année active et les frais rapidement
 
 @admin.register(TeacherProfile)
 class TeacherProfileAdmin(admin.ModelAdmin):

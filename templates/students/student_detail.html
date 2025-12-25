@@ -10,22 +10,49 @@
             {% if student.profile_picture %}
                 <img src="{{ student.profile_picture.url }}"
                      alt="{{ student.first_name }} {{ student.last_name }}"
-                     class="w-20 h-20 rounded-full object-cover border-4 border-white shadow-lg">
+                     class="w-28 h-36 rounded-lg object-cover border-4 border-white shadow-lg"
+                     style="object-position: center top;">
             {% else %}
-                <div class="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center font-bold text-3xl border-4 border-white">
+                <div class="w-28 h-36 rounded-lg bg-white/20 flex items-center justify-center font-bold text-2xl border-4 border-white">
                     {{ student.first_name|slice:":1" }}{{ student.last_name|slice:":1" }}
                 </div>
             {% endif %}
             <div class="flex-1">
                 <div class="text-sm opacity-80 uppercase tracking-wide">Étudiant</div>
                 <h1 class="text-2xl font-bold mt-1">{{ student.last_name }} {{ student.first_name }}</h1>
-                <div class="mt-2 text-sm opacity-90 font-mono bg-white/20 px-2 py-1 rounded inline-block">
-                    #{{ student.student_code }}
+                <div class="mt-2 flex items-center gap-2 flex-wrap">
+                    <div class="text-sm opacity-90 font-mono bg-white/20 px-2 py-1 rounded inline-block">
+                        #{{ student.student_code }}
+                    </div>
+                    {% if student.sex %}
+                        <span class="text-xs font-bold bg-white/10 text-white px-2 py-0.5 rounded border border-white/30">Sexe: {{ student.sex }}</span>
+                    {% endif %}
+                    {% if current_academic_year %}
+                        <span id="annual-fee-badge" class="text-xs font-bold px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition"
+                              onclick="toggleAnnualFee({{ student.id }})"
+                              title="Cliquer pour marquer comme {{ annual_fee_paid|yesno:'non payé,payé' }}">
+                            {% if annual_fee_paid %}
+                                <span class="bg-green-100/90 text-green-900 px-2 py-0.5 rounded">✓ Frais {{ current_academic_year.label }}: Payé</span>
+                            {% else %}
+                                <span class="bg-red-100/90 text-red-900 px-2 py-0.5 rounded">✗ Frais {{ current_academic_year.label }}: Non payé</span>
+                            {% endif %}
+                        </span>
+                    {% endif %}
                 </div>
             </div>
-            <a href="{% url 'students:list' %}" class="text-white/80 hover:text-white">
-                ← Retour
-            </a>
+            <div class="flex items-center gap-3">
+                <button hx-get="{% url 'students:edit' student.id %}" hx-target="body" hx-swap="beforeend"
+                        class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition border border-white/30">
+                    ✏️ Modifier
+                </button>
+                <button hx-get="{% url 'students:enrollment_form' %}?student_id={{ student.id }}" hx-target="body" hx-swap="beforeend"
+                        class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition border border-white/30">
+                    <span>+</span> Nouvelle Inscription
+                </button>
+                <a href="{% url 'students:list' %}" class="text-white/80 hover:text-white">
+                    ← Retour
+                </a>
+            </div>
         </div>
     </div>
 
@@ -57,84 +84,174 @@
                         <span class="font-medium text-gray-800">{{ student.created_at|date:"d M Y" }}</span>
                     </div>
                 </div>
+
+                {% if student.id_card_front or student.id_card_back %}
+                    <div class="mt-5 p-4 border border-gray-100 rounded-lg bg-gray-50" x-data="{ side: '{{ student.id_card_front|yesno:"front,back" }}' }">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="text-sm font-semibold text-gray-700">Carte d'identité</div>
+                        <div class="inline-flex gap-2">
+                            {% if student.id_card_front %}
+                            <button type="button" class="px-3 py-1 text-xs rounded-lg border" :class="side === 'front' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200'" @click="side='front'">Recto</button>
+                            {% endif %}
+                            {% if student.id_card_back %}
+                            <button type="button" class="px-3 py-1 text-xs rounded-lg border" :class="side === 'back' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-200'" @click="side='back'">Verso</button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="relative overflow-hidden rounded-lg border border-gray-200 bg-white">
+                        {% if student.id_card_front %}
+                        <img x-show="side === 'front'" src="{{ student.id_card_front.url }}" alt="Carte d'identité recto" class="w-full object-contain max-h-56">
+                        {% endif %}
+                        {% if student.id_card_back %}
+                        <img x-show="side === 'back'" x-cloak src="{{ student.id_card_back.url }}" alt="Carte d'identité verso" class="w-full object-contain max-h-56">
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
         </div>
 
         <div class="lg:col-span-2 space-y-6">
-            
-            {% for enrollment in enrollments %}
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <div class="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-start">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            <h3 class="font-bold text-lg text-indigo-900">{{ enrollment.cohort.name }}</h3>
-                            <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">
-                                {{ enrollment.cohort.subject.name }}
-                            </span>
+            <!-- Section: Inscriptions Actuelles -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="font-bold text-gray-800 mb-4">Inscriptions Actuelles</h3>
+                {% if active_enrollments %}
+                    {% for enrollment in active_enrollments %}
+                        <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-6">
+                            <div class="p-6 bg-gray-50 border-b border-gray-100 flex justify-between items-start">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-bold text-lg text-indigo-900">{{ enrollment.cohort.name }}</h3>
+                                        <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-0.5 rounded-full font-bold">
+                                            {{ enrollment.cohort.subject.name }} • {{ enrollment.cohort.level.name }}
+                                        </span>
+                                        <span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded-full font-bold">En cours</span>
+                                    </div>
+                                    <p class="text-sm text-gray-500 mt-1">
+                                        Prof: {{ enrollment.cohort.teacher.first_name }} • Période: {{ enrollment.cohort.start_date|date:"d/m/Y" }} - {{ enrollment.cohort.end_date|date:"d/m/Y" }}
+                                    </p>
+                                </div>
+                                <div class="text-right space-y-2">
+                                    {% if enrollment.balance_due > 0 %}
+                                        <span class="block text-2xl font-bold text-red-600">-{{ enrollment.balance_due }} DA</span>
+                                        <span class="text-xs text-red-400 font-medium">Reste à payer</span>
+                                    {% else %}
+                                        <span class="block text-2xl font-bold text-green-600">Soldé</span>
+                                        <span class="text-xs text-green-500">Tout est payé</span>
+                                    {% endif %}
+                                    {% if enrollment.payment_plan == 'PACK' and enrollment.cohort.is_individual %}
+                                    <div class="text-xs text-left bg-purple-50 border border-purple-200 rounded p-2 mt-2">
+                                        <div class="font-semibold text-purple-800">Pack d'heures</div>
+                                        <div class="text-purple-900 mt-1">
+                                            Achetées: <span class="font-bold">{{ enrollment.hours_purchased }}h</span>
+                                            • Consommées: <span class="font-bold">{{ enrollment.hours_consumed }}h</span>
+                                            • Restantes: <span class="font-bold">{{ enrollment.hours_remaining }}h</span>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    <div class="flex gap-2 justify-end">
+                                        <form method="post" action="{% url 'students:unenroll' enrollment.id %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="text-xs px-3 py-1 rounded bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100" onclick="return confirm('Résilier cette inscription ?');">Résilier</button>
+                                        </form>
+                                        <form method="post" action="{% url 'students:delete_enrollment' enrollment.id %}">
+                                            {% csrf_token %}
+                                            <button type="submit" class="text-xs px-3 py-1 rounded bg-red-50 text-red-700 border border-red-200 hover:bg-red-100" onclick="return confirm('Supprimer définitivement cette inscription et ses données (paiements, présences) ?');">Supprimer</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <p class="text-sm text-gray-500 mt-1">
-                            Prof: {{ enrollment.cohort.teacher.first_name }} • {{ enrollment.cohort.schedule_details|default:"Horaires non définis" }}
-                        </p>
-                    </div>
-                    
-                    <div class="text-right">
-                        {% if enrollment.balance_due > 0 %}
-                            <span class="block text-2xl font-bold text-red-600">-{{ enrollment.balance_due }} DA</span>
-                            <span class="text-xs text-red-400 font-medium">Reste à payer</span>
-                        {% else %}
-                            <span class="block text-2xl font-bold text-green-600">Soldé</span>
-                            <span class="text-xs text-green-500">Tout est payé</span>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                    
-                    <div>
-                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Détails du Tarif</h4>
-                        <div class="flex justify-between items-center py-2 border-b border-gray-100">
-                            <span class="text-gray-600">{{ enrollment.tariff.name }}</span>
-                            <span class="font-medium">{{ enrollment.tariff.amount }} DA</span>
-                        </div>
-                        <div class="flex justify-between items-center py-2 font-bold text-gray-800 mt-2">
-                            <span>Total Dû</span>
-                            <span>{{ enrollment.tariff.amount }} DA</span>
-                        </div>
-                    </div>
-
-                    <div class="bg-gray-50 p-4 rounded-lg">
-                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Historique Paiements</h4>
-                        
-                        <ul class="space-y-2 mb-4">
-                            {% for payment in enrollment.payments.all %}
-                                <li class="flex justify-between text-sm">
-                                    <span class="text-gray-600">{{ payment.date|date:"d/m" }} ({{ payment.get_method_display }})</span>
-                                    <span class="font-medium text-green-600">+{{ payment.amount }} DA</span>
-                                </li>
-                            {% empty %}
-                                <li class="text-sm text-gray-400 italic">Aucun paiement reçu.</li>
-                            {% endfor %}
-                        </ul>
-
-                        {% if enrollment.balance_due > 0 %}
-                            <a href="{% url 'finance:add_payment' enrollment.id %}" class="w-full py-2 px-4 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition flex justify-center items-center gap-2 shadow-sm text-center">
-                                <span>💵</span> Encaisser un paiement
-                            </a>
-                        {% else %}
-                            <button disabled class="w-full py-2 px-4 bg-gray-200 text-gray-400 rounded-lg font-medium cursor-not-allowed">
-                                Contrat Soldé
-                            </button>
-                        {% endif %}
-                    </div>
-                </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-sm text-gray-500">Aucune inscription en cours.</div>
+                {% endif %}
             </div>
-            {% empty %}
-            <div class="p-8 text-center bg-gray-50 rounded-xl">
-                Cet étudiant n'est inscrit à aucun cours pour le moment.
+
+            <!-- Section: Historique des Inscriptions -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="font-bold text-gray-800">Historique des Inscriptions</h3>
+                    <a href="{% url 'students:export_history' student.id %}"
+                       class="text-sm bg-gray-800 hover:bg-black text-white px-3 py-1.5 rounded-lg">Exporter CSV</a>
+                </div>
+                {% if past_enrollments %}
+                    {% for enrollment in past_enrollments %}
+                        <div class="border rounded-lg p-4 mb-3">
+                            <div class="flex items-center gap-2">
+                                <div class="font-semibold text-gray-800">{{ enrollment.cohort.name }}</div>
+                                <div class="text-xs text-gray-500">{{ enrollment.cohort.subject.name }} • {{ enrollment.cohort.level.name }}</div>
+                                {% if not enrollment.is_active %}
+                                    <span class="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded-full font-bold">Résilié</span>
+                                {% else %}
+                                    <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full font-bold">Terminé</span>
+                                {% endif %}
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">
+                                Période: {{ enrollment.cohort.start_date|date:"d/m/Y" }} - {{ enrollment.cohort.end_date|date:"d/m/Y" }} • Prof: {{ enrollment.cohort.teacher.get_full_name }}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-sm text-gray-500">Aucun historique.</div>
+                {% endif %}
             </div>
-            {% endfor %}
 
         </div>
     </div>
 </div>
+
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+function toggleAnnualFee(studentId) {
+    // Déterminer le statut actuel depuis le badge
+    const badge = document.getElementById('annual-fee-badge');
+    const isPaid = badge.querySelector('.bg-green-100\\/90') !== null;
+    
+    // Message de confirmation
+    const action = isPaid ? 'NON PAYÉ' : 'PAYÉ';
+    const message = isPaid 
+        ? `Marquer les frais d'inscription comme NON PAYÉS ?\n\n⚠️ L'étudiant apparaîtra comme n'ayant pas payé.`
+        : `Confirmer le paiement des frais d'inscription ?\n\n✅ L'étudiant sera marqué comme ayant payé les frais annuels.`;
+    
+    if (!confirm(message)) {
+        return;
+    }
+    
+    fetch(`/students/${studentId}/toggle-annual-fee/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Recharger la page pour afficher le nouveau statut
+            window.location.reload();
+        } else {
+            alert('Erreur: ' + (data.error || 'Impossible de modifier le statut'));
+        }
+    })
+    .catch(error => {
+        console.error('Erreur:', error);
+        alert('Erreur lors de la modification du statut');
+    });
+}
+</script>
 {% endblock %}
