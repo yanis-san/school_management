@@ -263,22 +263,14 @@
   // Fonction globale pour convertir un prospect (appelée par onclick)
   window.convertProspect = async function(id) {
     try {
-      // Marquer comme converti d'abord
-      const convertRes = await fetch(`{% url 'prospects:convert' 0 %}`.replace('0', id), {
-        method: 'POST',
-        headers: { 'X-CSRFToken': getCookie('csrftoken') },
-        credentials: 'same-origin',
-      });
-      
-      if (!convertRes.ok) {
-        alert('Erreur lors de la conversion');
-        return;
-      }
-      
-      // Précharger les données du prospect
+      // Précharger les données du prospect (sans marquer comme converti)
       const res = await fetch(`{% url 'prospects:get_prospect_data' 0 %}`.replace('0', id));
       if (!res.ok) return;
       const data = await res.json();
+      
+      // Stocker l'ID du prospect pour le marquer plus tard
+      sessionStorage.setItem('converting_prospect_id', id);
+      
       sessionStorage.setItem('prospect_prefill', JSON.stringify({
         first_name: data.first_name || '',
         last_name: data.last_name || '',

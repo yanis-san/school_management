@@ -161,3 +161,15 @@ def reset_prospect_on_student_delete(sender, instance, **kwargs):
     if instance.email:
         from prospects.models import Prospect
         Prospect.objects.filter(email=instance.email, converted=True).update(converted=False)
+
+
+# --- AUTOMATISME : Création étudiant -> Marquer prospect comme converti ---
+@receiver(post_save, sender=Student)
+def mark_prospect_as_converted(sender, instance, created, **kwargs):
+    """
+    Quand un étudiant est créé avec succès, marquer le prospect correspondant 
+    (même email) comme converti=True
+    """
+    if created and instance.email:
+        from prospects.models import Prospect
+        Prospect.objects.filter(email=instance.email, converted=False).update(converted=True)

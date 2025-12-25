@@ -366,19 +366,6 @@ def get_prospect_data(request, prospect_id):
 
 
 @login_required
-def convert_to_student(request, prospect_id):
-    """Convertit un prospect en étudiant et ouvre le formulaire d'inscription pré-rempli"""
-    prospect = get_object_or_404(Prospect, pk=prospect_id)
-    
-    # Marquer comme converti
-    prospect.converted = True
-    prospect.save()
-    
-    # Retourner un succès JSON pour AJAX
-    return JsonResponse({'success': True, 'message': f'{prospect.first_name} {prospect.last_name} marqué comme converti.'})
-
-
-@login_required
 @require_http_methods(["POST"])
 def cancel_conversion(request, prospect_id):
     """Annule la conversion d'un prospect : remet converted=False et supprime l'étudiant correspondant"""
