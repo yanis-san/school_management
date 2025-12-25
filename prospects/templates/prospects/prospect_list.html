@@ -231,8 +231,23 @@
           return;
         }
         const data = await res.json();
-        showStatus(`✅ ${data.created} nouveau(x) • ${data.skipped} déjà existant(s) • ${data.processed} traité(s)`,'text-green-700');
-        setTimeout(() => window.location.reload(), 800);
+        
+        // Afficher le résumé avec lien vers les détails
+        let statusMsg = `✅ ${data.created} nouveau(x) • ${data.skipped} fusionnés`;
+        if (data.duplicates && data.duplicates.length > 0) {
+          statusMsg += ` • ${data.duplicates.length} doublon(s) détecté(s)`;
+        }
+        showStatus(statusMsg, 'text-green-700');
+        
+        // Afficher le bouton pour voir les détails
+        const uploadStatus = document.getElementById('uploadStatus');
+        const detailsBtn = document.createElement('button');
+        detailsBtn.type = 'button';
+        detailsBtn.className = 'mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium';
+        detailsBtn.textContent = '📊 Voir les détails';
+        detailsBtn.onclick = () => window.location.href = `{% url 'prospects:upload_detail' 0 %}`.replace('0', data.upload_id);
+        uploadStatus.appendChild(detailsBtn);
+        
       } catch (err) {
         console.error(err);
         showStatus('Erreur réseau pendant l\'import', 'text-red-600');

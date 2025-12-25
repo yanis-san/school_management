@@ -6,8 +6,13 @@ from django.contrib.auth.decorators import login_required
 import csv
 import io
 from datetime import datetime
-from .models import Prospect
+from .models import Prospect, UploadHistory
 from django.core.paginator import Paginator
+
+
+def count_filled_fields(prospect_dict):
+    """Compte le nombre de champs remplis dans un dictionnaire de prospect"""
+    return sum(1 for v in prospect_dict.values() if v and str(v).strip())
 
 
 @login_required
@@ -128,6 +133,9 @@ def upload_csv(request):
         updated = 0
         processed = 0
         errors = []
+        created_details = []  # Détails des prospects créés
+        updated_details = []  # Détails des prospects fusionnés
+        duplicates = []  # Liste pour tracker les doublons
 
         for row_num, row in enumerate(csv_reader, start=2):
             try:
@@ -153,45 +161,171 @@ def upload_csv(request):
                     except Exception:
                         age_val = None
 
-                # Créer / mettre à jour le prospect (clé: email)
+                # Récupérer les infos critiques pour détecter les doublons
                 email = (row.get('Email') or '').strip()
+                first_name = (row.get('Prénom') or row.get('Prenom') or '').strip()
+                last_name = (row.get('Nom') or '').strip()
+                phone = (row.get('Téléphone') or row.get('Telephone') or row.get('Tel') or '').strip()
+                specific_course = (row.get('Cours spécifique') or row.get('Cours specifique') or '').strip()
+                
                 if not email:
                     raise ValueError("Email manquant")
 
-                defaults = {
-                    'first_name': (row.get('Prénom') or row.get('Prenom') or '').strip(),
-                    'last_name': (row.get('Nom') or '').strip(),
-                    'phone': (row.get('Téléphone') or row.get('Telephone') or row.get('Tel') or '').strip(),
+                new_data = {
+                    'first_name': first_name,
+                    'last_name': last_name,
+                    'email': email,
+                    'phone': phone,
                     'age': age_val,
                     'birth_date': birth_date,
                     'level': (row.get('Niveau') or '').strip(),
                     'source': (row.get('Source') or '').strip(),
                     'activity_type': (row.get("Type d'activité") or row.get('Type activite') or '').strip(),
-                    'specific_course': (row.get('Cours spécifique') or row.get('Cours specifique') or '').strip(),
+                    'specific_course': specific_course,
                     'message': (row.get('Message') or '').strip(),
                     'notes': (row.get('Notes') or '').strip(),
                 }
 
-                prospect, was_created = Prospect.objects.get_or_create(
-                    email=email,
-                    defaults=defaults
+                # Détection de doublons : Nom + Prénom + Email + Cours + Date de naissance
+                duplicate_query = Prospect.objects.filter(
+                    first_name__iexact=first_name,
+                    last_name__iexact=last_name,
+                    email__iexact=email
                 )
                 
-                if was_created:
-                    created += 1
-                else:
-                    # Ne pas écraser le statut si le prospect existe déjà
-                    # Mettre à jour uniquement les champs non-statut
-                    for key, value in defaults.items():
-                        setattr(prospect, key, value)
-                    prospect.save(update_fields=list(defaults.keys()))
+                # Ajouter le filtre sur le cours s'il est fourni
+                if specific_course:
+                    duplicate_query = duplicate_query.filter(specific_course__iexact=specific_course)
+                
+                # Ajouter le filtre sur la date de naissance s'elle est fournie
+                if birth_date:
+                    duplicate_query = duplicate_query.filter(birth_date=birth_date)
+                
+                prospect = duplicate_query.first()
+                
+                if prospect:
+                    # Prospect trouvé → fusionner les données en gardant les plus complètes
+                    old_data = {
+                        'first_name': prospect.first_name,
+                        'last_name': prospect.last_name,
+                        'email': prospect.email,
+                        'phone': prospect.phone,
+                        'age': prospect.age,
+                        'birth_date': prospect.birth_date,
+                        'level': prospect.level,
+                        'source': prospect.source,
+                        'activity_type': prospect.activity_type,
+                        'specific_course': prospect.specific_course,
+                        'message': prospect.message,
+                        'notes': prospect.notes,
+                    }
+                    
+                    # Déterminer les raisons du doublon
+                    reasons = []
+                    if first_name.lower() == prospect.first_name.lower():
+                        reasons.append(f"Prénom: {first_name}")
+                    if last_name.lower() == prospect.last_name.lower():
+                        reasons.append(f"Nom: {last_name}")
+                    if email.lower() == prospect.email.lower():
+                        reasons.append(f"Email: {email}")
+                    if specific_course and specific_course.lower() == prospect.specific_course.lower():
+                        reasons.append(f"Cours: {specific_course}")
+                    if birth_date and birth_date == prospect.birth_date:
+                        reasons.append(f"Naissance: {birth_date}")
+                    
+                    # Enregistrer le doublon trouvé
+                    duplicates.append({
+                        'row': row_num,
+                        'new': {
+                            'first_name': first_name,
+                            'last_name': last_name,
+                            'email': email,
+                            'phone': phone,
+                            'birth_date': str(birth_date) if birth_date else '',
+                            'specific_course': specific_course,
+                        },
+                        'existing': {
+                            'id': prospect.id,
+                            'first_name': prospect.first_name,
+                            'last_name': prospect.last_name,
+                            'email': prospect.email,
+                            'phone': prospect.phone,
+                            'birth_date': str(prospect.birth_date) if prospect.birth_date else '',
+                            'specific_course': prospect.specific_course,
+                        },
+                        'reasons': reasons,
+                    })
+                    
+                    # Compter les champs remplis dans chaque version
+                    old_count = count_filled_fields(old_data)
+                    new_count = count_filled_fields(new_data)
+                    
+                    # Fusionner : prendre la version la plus complète pour chaque champ
+                    # IMPORTANT: Ne jamais écraser les champs sensibles (converted, notes)
+                    merged_data = {}
+                    for key in new_data.keys():
+                        old_val = old_data.get(key)
+                        new_val = new_data.get(key)
+                        
+                        # Garder la valeur non-vide, sinon la valeur nouvelle
+                        if old_val and str(old_val).strip():
+                            merged_data[key] = old_val
+                        elif new_val and str(new_val).strip():
+                            merged_data[key] = new_val
+                        else:
+                            merged_data[key] = new_val or old_val
+                    
+                    # Appliquer les données fusionnées
+                    # IMPORTANT: Ne jamais modifier converted (statut de conversion)
+                    for key, value in merged_data.items():
+                        if key != 'converted':  # Protéger le statut
+                            setattr(prospect, key, value)
+                    
+                    # Conserver le statut de conversion existant
+                    # prospect.converted reste inchangé
+                    prospect.save()
+                    
+                    # Enregistrer les détails de la fusion
+                    updated_details.append({
+                        'row': row_num,
+                        'prospect_id': prospect.id,
+                        'name': f"{prospect.first_name} {prospect.last_name}",
+                        'email': prospect.email,
+                        'reason': 'Doublon détecté - Données fusionnées',
+                        'criteria': reasons,
+                    })
                     updated += 1
+                else:
+                    # Nouveau prospect → création
+                    prospect = Prospect.objects.create(**new_data)
+                    
+                    # Enregistrer les détails de la création
+                    created_details.append({
+                        'row': row_num,
+                        'prospect_id': prospect.id,
+                        'name': f"{prospect.first_name} {prospect.last_name}",
+                        'email': prospect.email,
+                        'reason': 'Nouveau prospect créé',
+                    })
+                    created += 1
             except Exception as e:
                 errors.append(f"Ligne {row_num}: {str(e)}")
 
-        message = f"Import terminé. {created} nouveau(x) prospect(s) ajouté(s), {updated} déjà existant(s)."
+        message = f"Import terminé. {created} nouveau(x) prospect(s) ajouté(s), {updated} doublons fusionnés."
         if errors:
             message += f" {len(errors)} erreur(s)."
+
+        # Sauvegarder dans l'historique
+        upload_record = UploadHistory.objects.create(
+            filename=csv_file.name,
+            total_processed=processed,
+            created_count=created,
+            updated_count=updated,
+            created_data=created_details,
+            updated_data=updated_details,
+            duplicates_data=duplicates,
+            errors_data=errors
+        )
 
         return JsonResponse({
             'success': True,
@@ -199,7 +333,9 @@ def upload_csv(request):
             'created': created,
             'skipped': updated,
             'processed': processed,
-            'errors': errors
+            'errors': errors,
+            'duplicates': duplicates,
+            'upload_id': upload_record.id
         })
     
     except Exception as e:
@@ -489,3 +625,28 @@ def prospect_dashboard(request):
     }
     
     return render(request, 'prospects/prospect_dashboard.html', context)
+
+@login_required
+def upload_history(request):
+    """Affiche l'historique des uploads"""
+    uploads = UploadHistory.objects.all()
+    paginator = Paginator(uploads, 20)
+    page = int(request.GET.get('page', 1))
+    page_obj = paginator.get_page(page)
+    
+    context = {
+        'page_obj': page_obj,
+        'uploads': page_obj,
+    }
+    return render(request, 'prospects/upload_history.html', context)
+
+
+@login_required
+def upload_detail(request, upload_id):
+    """Affiche les détails d'un upload"""
+    upload = get_object_or_404(UploadHistory, pk=upload_id)
+    
+    context = {
+        'upload': upload,
+    }
+    return render(request, 'prospects/upload_detail.html', context)

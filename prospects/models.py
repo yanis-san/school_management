@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils import timezone
+import json
 
 
 class Prospect(models.Model):
@@ -37,3 +38,45 @@ class Prospect(models.Model):
         if self.specific_course:
             parts.append(self.specific_course)
         return " - ".join(parts) if parts else "Non spécifié"
+
+
+class UploadHistory(models.Model):
+    """Historique des imports CSV de prospects"""
+    
+    filename = models.CharField(max_length=255, verbose_name="Nom du fichier")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Date d'import")
+    
+    # Résumé de l'import
+    total_processed = models.IntegerField(verbose_name="Total traité")
+    created_count = models.IntegerField(verbose_name="Créés")
+    updated_count = models.IntegerField(verbose_name="Fusionnés")
+    
+    # Détails en JSON pour plus de flexibilité
+    created_data = models.JSONField(default=list, verbose_name="Prospects créés")
+    updated_data = models.JSONField(default=list, verbose_name="Prospects fusionnés")
+    duplicates_data = models.JSONField(default=list, verbose_name="Doublons détectés")
+    errors_data = models.JSONField(default=list, verbose_name="Erreurs")
+    
+    class Meta:
+        verbose_name = "Historique d'import"
+        verbose_name_plural = "Historiques d'import"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"Import {self.filename} ({self.created_at.strftime('%d/%m/%Y %H:%M')})"
+    
+    @property
+    def created_list(self):
+        return self.created_data if isinstance(self.created_data, list) else []
+    
+    @property
+    def updated_list(self):
+        return self.updated_data if isinstance(self.updated_data, list) else []
+    
+    @property
+    def duplicates_count(self):
+        return len(self.duplicates_data) if isinstance(self.duplicates_data, list) else 0
+    
+    @property
+    def errors_count(self):
+        return len(self.errors_data) if isinstance(self.errors_data, list) else 0
