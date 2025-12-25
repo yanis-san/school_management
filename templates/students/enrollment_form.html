@@ -217,5 +217,20 @@ document.addEventListener('keydown', function(event) {
             modal.remove();
         }
     }
+    
+    // Soumettre avec Ctrl+Enter
+    if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+        event.preventDefault();
+        const modal = document.getElementById('enrollment-modal');
+        if (modal) {
+            const form = modal.querySelector('form');
+            if (form) {
+                const submitButton = form.querySelector('button[type="submit"]');
+                if (submitButton) {
+                    submitButton.click();
+                }
+            }
+        }
+    }
 });
 </script>
