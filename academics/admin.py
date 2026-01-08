@@ -24,6 +24,27 @@ class CohortAdmin(admin.ModelAdmin):
     list_filter = ('academic_year', 'subject', 'level', 'teacher', 'modality', 'is_individual')
     inlines = [WeeklyScheduleInline, CourseSessionInline]
     actions = ['force_schedule_generation']
+    
+    fieldsets = (
+        ('ℹ️ Informations Générales', {
+            'fields': ('subject', 'level', 'teacher', 'academic_year')
+        }),
+        ('📅 Dates & Horaires', {
+            'fields': ('start_date', 'end_date', 'schedule', 'max_students')
+        }),
+        ('🎯 Modalité & Format', {
+            'fields': ('modality', 'is_individual'),
+            'description': 'Choisissez la modalité (Présentiel/En ligne) et si le groupe est individuel. Le nom s\'adaptera automatiquement.'
+        }),
+        ('⚙️ Ramadan (Optionnel)', {
+            'fields': ('ramadan_start', 'ramadan_end', 'ramadan_start_time', 'ramadan_end_time', 'ramadan_teacher_hourly_rate'),
+            'classes': ('collapse',),
+        }),
+        ('📊 État', {
+            'fields': ('schedule_generated',),
+            'classes': ('collapse',),
+        }),
+    )
 
     def force_schedule_generation(self, request, queryset):
         # Action manuelle au cas où
