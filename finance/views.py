@@ -34,7 +34,7 @@ def add_payment(request, enrollment_id):
     enrollment = get_object_or_404(Enrollment, pk=enrollment_id)
     
     if request.method == 'POST':
-        form = PaymentForm(request.POST)
+        form = PaymentForm(request.POST, request.FILES)
         if form.is_valid():
             payment = form.save(commit=False)
             payment.enrollment = enrollment

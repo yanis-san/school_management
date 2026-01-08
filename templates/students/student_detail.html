@@ -164,6 +164,40 @@
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Historique des paiements -->
+                            {% if enrollment.payments.exists %}
+                            <div class="p-4 bg-gray-50 border-t border-gray-200">
+                                <h4 class="text-sm font-semibold text-gray-700 mb-3">💳 Paiements enregistrés</h4>
+                                <div class="space-y-2">
+                                    {% for payment in enrollment.payments.all %}
+                                    <div class="flex items-center justify-between bg-white p-3 rounded border border-gray-200 text-sm">
+                                        <div class="flex items-center gap-3">
+                                            <div class="text-gray-600">
+                                                <span class="font-bold text-gray-900">{{ payment.amount|stringformat:"d" }} DA</span>
+                                                · {{ payment.date|date:"d/m/Y" }}
+                                                · <span class="text-xs bg-gray-100 px-2 py-0.5 rounded">{{ payment.get_method_display }}</span>
+                                            </div>
+                                            {% if payment.transaction_id %}
+                                            <div class="text-xs text-gray-500">
+                                                Réf: {{ payment.transaction_id }}
+                                            </div>
+                                            {% endif %}
+                                        </div>
+                                        {% if payment.receipt %}
+                                        <a href="{{ payment.receipt.url }}" target="_blank" 
+                                           class="flex items-center gap-1 text-xs px-3 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 font-medium">
+                                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd"/>
+                                            </svg>
+                                            Voir reçu
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endif %}
                         </div>
                     {% endfor %}
                 {% else %}

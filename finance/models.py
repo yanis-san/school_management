@@ -37,6 +37,15 @@ class Payment(models.Model):
     date = models.DateField(auto_now_add=True)
     transaction_id = models.CharField(max_length=100, blank=True, help_text="Numéro de chèque ou virement")
 
+    # Reçu / Justificatif (PDF, image)
+    receipt = models.FileField(
+        upload_to='payment_receipts/%Y/%m/',
+        blank=True,
+        null=True,
+        verbose_name="Reçu/Justificatif",
+        help_text="PDF, image (JPEG, PNG, WEBP)"
+    )
+
     recorded_by = models.ForeignKey(User, on_delete=models.PROTECT)
 
     def __str__(self):

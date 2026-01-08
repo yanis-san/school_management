@@ -27,10 +27,13 @@ class CohortAdmin(admin.ModelAdmin):
     
     fieldsets = (
         ('ℹ️ Informations Générales', {
-            'fields': ('subject', 'level', 'teacher', 'academic_year')
+            'fields': ('subject', 'level', 'teacher', 'academic_year', 'substitute_teachers')
         }),
-        ('📅 Dates & Horaires', {
-            'fields': ('start_date', 'end_date', 'schedule', 'max_students')
+        ('📅 Dates', {
+            'fields': ('start_date', 'end_date')
+        }),
+        ('💰 Tarifs', {
+            'fields': ('standard_price', 'teacher_hourly_rate')
         }),
         ('🎯 Modalité & Format', {
             'fields': ('modality', 'is_individual'),
