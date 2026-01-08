@@ -276,7 +276,8 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    {% load static %}
+    <script src="{% static 'js/chart.umd.js' %}"></script>
     <script>
     // ============ DONNÉES GLOBALES ============
     const monthlyData = {{ monthly_breakdown|safe }};

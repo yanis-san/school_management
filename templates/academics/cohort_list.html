@@ -25,12 +25,17 @@
             <form method="get" class="flex flex-wrap gap-2 items-end">
                 <div>
                     <label class="block text-xs text-gray-600">Année</label>
-                    <select name="year" class="border rounded px-2 py-1 text-sm">
+                    <div class="flex items-center gap-2">
+                        <select name="year" class="border rounded px-2 py-1 text-sm">
                         <option value="">Toutes</option>
                         {% for y in years %}
                             <option value="{{ y.id }}" {% if year_filter|default:'' == y.id|stringformat:'s' %}selected{% endif %}>{{ y.label }}</option>
                         {% endfor %}
-                    </select>
+                        </select>
+                        {% if auto_year_default %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">Année courante</span>
+                        {% endif %}
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs text-gray-600">Statut</label>
@@ -121,8 +126,14 @@
                 </div>
 
                 <div class="mt-3 pt-3 border-t border-gray-100">
-                    <a href="{% url 'academics:detail' cohort.id %}" class="block w-full text-center text-indigo-600 hover:text-indigo-900 font-medium text-sm border border-indigo-200 hover:border-indigo-600 px-3 py-2 rounded-lg transition">
-                        Voir Détails
+                    <div class="flex gap-2">
+                        <a href="{% url 'academics:detail' cohort.id %}" class="flex-1 text-center text-indigo-600 hover:text-indigo-900 font-medium text-sm border border-indigo-200 hover:border-indigo-600 px-3 py-2 rounded-lg transition">
+                            Voir Détails
+                        </a>
+                        <a href="{% url 'documents:download_cohort_complete' cohort.id %}" class="text-green-600 hover:text-green-900 font-medium text-sm border border-green-200 hover:border-green-600 px-3 py-2 rounded-lg transition" title="Dossier complet ZIP">
+                            📦
+                        </a>
+                    </div>
                     </a>
                 </div>
             </div>
@@ -209,9 +220,14 @@
                         {% endif %}
                     </td>
                     <td class="p-3 lg:p-4 text-right">
-                        <a href="{% url 'academics:detail' cohort.id %}" class="text-indigo-600 hover:text-indigo-900 font-medium text-xs lg:text-sm border border-indigo-200 hover:border-indigo-600 px-2 lg:px-3 py-1 rounded-lg transition">
-                            Détails
-                        </a>
+                        <div class="flex items-center justify-end gap-2">
+                            <a href="{% url 'academics:detail' cohort.id %}" class="text-indigo-600 hover:text-indigo-900 font-medium text-xs lg:text-sm border border-indigo-200 hover:border-indigo-600 px-2 lg:px-3 py-1 rounded-lg transition">
+                                Détails
+                            </a>
+                            <a href="{% url 'documents:download_cohort_complete' cohort.id %}" class="text-green-600 hover:text-green-900 font-medium text-xs lg:text-sm border border-green-200 hover:border-green-600 px-2 lg:px-3 py-1 rounded-lg transition" title="Dossier complet ZIP">
+                                📦
+                            </a>
+                        </div>
                     </td>
                 </tr>
                 {% empty %}

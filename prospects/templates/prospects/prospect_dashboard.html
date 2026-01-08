@@ -111,8 +111,9 @@
         </div>
     </div>
 
-    <!-- CHART.JS CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <!-- CHART.JS LOCAL -->
+    {% load static %}
+    <script src="{% static 'js/chart.umd.js' %}"></script>
 
     {{ conversions_by_month|json_script:"conversions-data" }}
     {{ courses_data|json_script:"courses-data" }}

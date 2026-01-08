@@ -121,6 +121,7 @@
                     <th class="px-6 py-3 text-right text-sm font-semibold text-gray-700">Reste</th>
                     <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">Avancement</th>
                     <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">Statut</th>
+                    <th class="px-6 py-3 text-center text-sm font-semibold text-gray-700">Action</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-200">
@@ -179,6 +180,15 @@
                             <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
                                 🟢 PAYÉ
                             </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        {% if item.status != 'PAYÉ' and item.remaining > 0 %}
+                            <a href="{% url 'finance:add_payment' item.enrollment.id %}" class="inline-flex items-center px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-semibold transition">
+                                💰 Payer
+                            </a>
+                        {% else %}
+                            <span class="text-gray-400 text-xs">-</span>
                         {% endif %}
                     </td>
                 </tr>

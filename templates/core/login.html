@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Connexion - Institut Torii</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    {% load static %}
+    <script src="{% static 'js/tailwind.min.js' %}"></script>
     <style>
         .japanese-gradient {
             background: linear-gradient(135deg,
@@ -77,6 +78,19 @@
             </p>
         </div>
     </div>
+
+    <script>
+        // Supprimer automatiquement les espaces du champ username
+        document.getElementById('username').addEventListener('input', function(e) {
+            this.value = this.value.trim();
+        });
+        
+        // Nettoyer aussi avant la soumission du formulaire
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const usernameInput = document.getElementById('username');
+            usernameInput.value = usernameInput.value.trim();
+        });
+    </script>
 
 </body>
 </html>

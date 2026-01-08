@@ -1,42 +1,105 @@
 {% extends 'base.html' %}
 
-{% block title %}Génération de Documents{% endblock %}
+{% block title %}Rapports PDF{% endblock %}
 
 {% block content %}
 <div class="space-y-6">
 
     <div class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6 rounded-xl shadow-lg">
-        <h1 class="text-2xl font-bold">Génération de Documents</h1>
+        <h1 class="text-2xl font-bold">Rapports PDF & ZIP</h1>
         <p class="text-white/80 mt-2">
-            Sélectionnez un groupe pour générer les documents pédagogiques et administratifs
+            Exports prêts à remettre (logo, timestamp, PDF). Un clic = un fichier.
         </p>
     </div>
 
-    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-        <h2 class="text-lg font-bold text-gray-800 mb-4">Sélectionner un Groupe</h2>
-
-        <p class="text-sm text-gray-600 mb-6">
-            Le package généré contiendra :
-        </p>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div class="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h3 class="font-bold text-blue-900 mb-2">Pack Enseignant</h3>
-                <ul class="text-sm text-blue-700 space-y-1">
-                    <li>• Fiche de Suivi des Séances</li>
-                    <li>• Feuille d'Émargement (présences)</li>
-                </ul>
-            </div>
-
-            <div class="bg-green-50 p-4 rounded-lg border border-green-200">
-                <h3 class="font-bold text-green-900 mb-2">Pack Étudiants</h3>
-                <ul class="text-sm text-green-700 space-y-1">
-                    <li>• Fiches d'inscription individuelles</li>
-                    <li>• Informations financières</li>
-                    <li>• Échéancier de paiement</li>
-                </ul>
-            </div>
+    <!-- SYNCHRONISATION GLOBALE -->
+    <div class="bg-gradient-to-r from-blue-50 to-cyan-50 border-2 border-blue-300 rounded-xl overflow-hidden">
+        <div class="bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-3">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                🔄 SYNCHRONISATION GLOBALE
+            </h2>
         </div>
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-700">
+                <strong>🚀 Solution rapide pour 2 PCs :</strong> Export tout depuis PC1, Import tout sur PC2.
+                <br/> <em>Synchronise TOUTES les présences + paiements automatiquement (sans perte de données).</em>
+            </p>
+            
+            <div class="flex flex-wrap gap-3">
+                <!-- BOUTON EXPORT -->
+                {% if current_year %}
+                <a href="{% url 'documents:export_global_sync' %}"
+                   class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition shadow-md">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    📥 Export Global (PC1)
+                </a>
+                {% endif %}
+                
+                <!-- BOUTON IMPORT -->
+                <button onclick="document.getElementById('globalSyncFileInput').click()"
+                        class="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700 text-white px-6 py-3 rounded-lg font-semibold transition shadow-md">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                    </svg>
+                    📤 Import & Sync (PC2)
+                </button>
+                <input type="file" id="globalSyncFileInput" accept=".zip" style="display:none" onchange="uploadGlobalSync(this.files[0])">
+            </div>
+            
+            <div id="globalSyncStatus" class="text-sm text-gray-600 hidden"></div>
+        </div>
+    </div>
+
+    <!-- ZIP GLOBAL INSTITUT -->
+    <div class="bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-300 rounded-xl overflow-hidden">
+        <div class="bg-gradient-to-r from-emerald-600 to-green-600 px-6 py-3">
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                </svg>
+                📦 ZIP COMPLET INSTITUT
+            </h2>
+        </div>
+        <div class="p-6 space-y-3">
+            <p class="text-sm text-gray-700">
+                <strong>Un seul ZIP contient TOUT :</strong> Tous les cohorts avec rapports + présences + rapport global année courante.
+                <br/> <em>Organisé par dossiers, prêt à utiliser.</em>
+            </p>
+            {% if current_year %}
+            <a href="{% url 'documents:download_all_cohorts_zip' %}"
+               class="inline-block bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-semibold transition shadow-sm">
+                Télécharger ZIP Institut {{ current_year.label }}
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RAPPORT GLOBAL -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 space-y-4">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800">Rapport global (année courante)</h2>
+                <p class="text-sm text-gray-600">Étudiants, encaissements, paiements profs – année is_current.</p>
+            </div>
+            {% if current_year %}
+            <a href="{% url 'documents:global_reports' %}"
+               class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold shadow-sm transition">
+                Télécharger PDF {{ current_year.label }}
+            </a>
+            {% else %}
+            <span class="text-sm text-amber-600">Aucune année académique active (is_current).</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- RAPPORTS PAR COHORT -->
+    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <h2 class="text-lg font-bold text-gray-800 mb-4">Rapports par cohort</h2>
 
         {% if cohorts %}
             <div class="space-y-4">
@@ -70,13 +133,55 @@
                             </div>
                         </div>
 
-                        <a href="{% url 'documents:generate_documents' cohort.id %}"
-                           class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            Générer ZIP
-                        </a>
+                        <div class="flex flex-col gap-2 md:flex-row">
+                            <a href="{% url 'documents:cohort_report' cohort.id %}"
+                               class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2 justify-center md:justify-start">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                Rapport complet
+                            </a>
+                            <a href="{% url 'documents:download_cohort_attendance' cohort.id %}"
+                               class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2 justify-center md:justify-start text-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7 20H5a2 2 0 01-2-2V5a2 2 0 012-2h10a2 2 0 012 2v12a2 2 0 01-2 2h-2.586a1 1 0 00-.707.293l-5.414-5.414z" />
+                                </svg>
+                                Présences
+                            </a>
+                            <a href="{% url 'documents:download_cohort_zip' cohort.id %}"
+                               class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg font-medium transition shadow-sm flex items-center gap-2 justify-center md:justify-start text-sm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                ZIP
+                            </a>
+                            
+                            <!-- Sync -->
+                            <div class="dropdown relative md:ml-auto">
+                                <button class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg font-medium text-sm transition shadow-sm">
+                                    ⟲ Sync
+                                </button>
+                                <div class="dropdown-menu absolute hidden bg-white border border-gray-300 rounded-lg shadow-lg z-10 right-0 mt-1 w-48">
+                                    <a href="{% url 'documents:export_sync_csv' cohort.id 'attendance' %}" class="block px-4 py-2 text-sm hover:bg-gray-100">
+                                        📥 Export Presences (CSV)
+                                    </a>
+                                    <button onclick="document.getElementById('import-att-{{ cohort.id }}').click()" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
+                                        📤 Import Presences (CSV)
+                                    </button>
+                                    <input type="file" id="import-att-{{ cohort.id }}" accept=".csv" style="display:none;" 
+                                           onchange="uploadSync(this, {{ cohort.id }}, 'attendance')">
+                                    <hr/>
+                                    <a href="{% url 'documents:export_sync_csv' cohort.id 'payments' %}" class="block px-4 py-2 text-sm hover:bg-gray-100">
+                                        📥 Export Paiements (CSV)
+                                    </a>
+                                    <button onclick="document.getElementById('import-pay-{{ cohort.id }}').click()" class="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100">
+                                        📤 Import Paiements (CSV)
+                                    </button>
+                                    <input type="file" id="import-pay-{{ cohort.id }}" accept=".csv" style="display:none;" 
+                                           onchange="uploadSync(this, {{ cohort.id }}, 'payments')">
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 {% endfor %}
@@ -89,4 +194,89 @@
     </div>
 
 </div>
+
+<script>
+// Dropdown toggle
+document.querySelectorAll('.dropdown').forEach(d => {
+    d.querySelector('button').addEventListener('click', () => {
+        const menu = d.querySelector('.dropdown-menu');
+        menu.classList.toggle('hidden');
+    });
+});
+
+// Close dropdowns when clicking outside
+document.addEventListener('click', e => {
+    if (!e.target.closest('.dropdown')) {
+        document.querySelectorAll('.dropdown-menu').forEach(m => m.classList.add('hidden'));
+    }
+});
+
+// Upload Global Sync
+function uploadGlobalSync(file) {
+    if (!file) return;
+    
+    const statusDiv = document.getElementById('globalSyncStatus');
+    statusDiv.className = 'text-sm text-blue-600 font-semibold';
+    statusDiv.textContent = '⏳ Synchronisation en cours...';
+    statusDiv.classList.remove('hidden');
+    
+    const formData = new FormData();
+    formData.append('sync_file', file);
+    formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    
+    fetch("{% url 'documents:import_global_sync' %}", {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            statusDiv.className = 'text-sm text-green-600 font-semibold';
+            statusDiv.innerHTML = '✅ ' + data.message.replace(/\n/g, '<br/>');
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        } else {
+            statusDiv.className = 'text-sm text-red-600 font-semibold';
+            statusDiv.textContent = '❌ ' + data.message;
+        }
+    })
+    .catch(error => {
+        statusDiv.className = 'text-sm text-red-600 font-semibold';
+        statusDiv.textContent = '❌ Erreur réseau: ' + error.message;
+    });
+}
+
+// Upload Sync per cohort
+function uploadSync(input, cohortId, dataType) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    const formData = new FormData();
+    formData.append('sync_file', file);
+    
+    fetch(`/documents/sync/import/${cohortId}/${dataType}/`, {
+        method: 'POST',
+        body: formData,
+        headers: {'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value}
+    })
+    .then(r => r.json())
+    .then(data => {
+        alert(`✅ ${data.message}`);
+        location.reload();
+    })
+    .catch(e => alert(`❌ Erreur : ${e}`));
+}
+</script>
+
+<style>
+.dropdown-menu {
+    transition: opacity 0.2s;
+}
+</style>
+
 {% endblock %}
+

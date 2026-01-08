@@ -156,30 +156,26 @@
         </div>
     </div>
 
-    {% if not cohort.schedule_generated or not sessions.exists %}
     <!-- Actions Planning -->
-    <div class="bg-yellow-50 border border-yellow-200 p-4 rounded-xl">
-        <div class="flex items-center justify-between">
+    <div class="bg-white border border-gray-100 p-4 rounded-xl shadow-sm">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
             <div>
-                <h4 class="font-bold text-yellow-800">Planning {{ cohort.schedule_generated|yesno:"généré,non généré" }}</h4>
-                <p class="text-sm text-yellow-700 mt-1">
-                    Assurez-vous d'avoir des créneaux hebdomadaires (WeeklySchedule). Vous pouvez générer le planning si besoin.
+                <h4 class="font-bold text-gray-800">Planning</h4>
+                <p class="text-sm text-gray-600">
+                    {{ sessions.count }} séance(s) existante(s) · {{ remaining_sessions }} à venir (Prévu/Reporté) · Planning {{ cohort.schedule_generated|yesno:"généré,non généré" }}.
                 </p>
-                {% if cohort.schedule_generated and not sessions.exists %}
-                    <p class="text-xs text-yellow-700 mt-1">Planning marqué généré mais aucune séance : relancez la génération.</p>
-                {% else %}
-                    <p class="text-xs text-yellow-700 mt-1">Pas encore généré : lancez la création des séances.</p>
-                {% endif %}
+                <p class="text-xs text-gray-500 mt-1">"Générer" complète le planning après un changement de date de fin ou d'horaires.</p>
             </div>
-            <form method="post" action="{% url 'academics:generate_sessions' cohort.id %}">
-                {% csrf_token %}
-                <button type="submit" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg font-bold whitespace-nowrap shadow-sm transition">
-                    Générer le Planning
-                </button>
-            </form>
+            <div class="flex flex-wrap gap-2">
+                <form method="post" action="{% url 'academics:generate_sessions' cohort.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold whitespace-nowrap shadow-sm transition">
+                        Générer / compléter le planning
+                    </button>
+                </form>
+            </div>
         </div>
     </div>
-    {% endif %}
 
     <!-- Calendrier des Séances -->
     <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -300,6 +296,27 @@
         </div>
         {% endif %}
     </div>
+
+    <!-- Zone de Clôture du Groupe -->
+    {% if not cohort.is_finished %}
+    <div class="bg-red-50 border border-red-200 p-4 rounded-xl">
+        <div class="flex flex-col items-center gap-3">
+            <div class="text-center">
+                <h4 class="text-sm font-semibold text-red-800">Zone de clôture</h4>
+                <p class="text-xs text-red-600 mt-1">
+                    Cette action supprimera {{ remaining_sessions }} séance(s) non terminée(s) et fixera la date de fin à aujourd'hui.
+                </p>
+            </div>
+            <form method="post" action="{% url 'academics:finish_cohort' cohort.id %}"
+                  onsubmit="return confirm('Supprimer {{ remaining_sessions }} séance(s) non terminée(s) et fixer la date de fin à aujourd\'hui ?') && confirm('Confirmez une deuxième fois : action irréversible.');">
+                {% csrf_token %}
+                <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap shadow-sm transition">
+                    Terminer le groupe
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 
 </div>
 {% endblock %}

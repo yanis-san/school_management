@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 import csv
 import io
 from datetime import datetime
+from urllib.parse import urlencode
 from .models import Prospect, UploadHistory
 from django.core.paginator import Paginator
 
@@ -19,7 +20,7 @@ def count_filled_fields(prospect_dict):
 @ensure_csrf_cookie
 def prospect_list(request):
     """Affiche la liste des prospects avec recherche/filtre/pagination"""
-    qs = Prospect.objects.all().order_by('-created_at')
+    qs = Prospect.objects.all()
 
     # Filtres
     q = (request.GET.get('q') or '').strip()
@@ -77,11 +78,50 @@ def prospect_list(request):
     converted_count = qs.filter(converted=True).count()
     not_converted_count = qs.filter(converted=False).count()
 
+    # Tri
+    sort = (request.GET.get('sort') or 'created_at').strip()
+    direction = (request.GET.get('dir') or 'desc').strip().lower()
+    if direction not in ('asc', 'desc'):
+        direction = 'desc'
+
+    allowed_sorts = {
+        'name': ('last_name', 'first_name'),
+        'contact': ('email', 'phone'),
+        'level': ('level',),
+        'activity': ('activity_type',),
+        'source': ('source',),
+        'status': ('converted',),
+        'created_at': ('created_at',),
+    }
+
+    if sort not in allowed_sorts:
+        sort = 'created_at'
+        direction = 'desc'
+
+    order_fields = []
+    for field in allowed_sorts[sort]:
+        order_fields.append(field if direction == 'asc' else f'-{field}')
+
+    qs = qs.order_by(*order_fields)
+
     # Pagination
     page = int(request.GET.get('page', 1))
     per_page = int(request.GET.get('per_page', 25))
     paginator = Paginator(qs, per_page)
     page_obj = paginator.get_page(page)
+
+    # Construire la query string pour réutiliser les filtres dans les liens (sauf page)
+    base_query_params = {
+        'q': q,
+        'converted': converted,
+        'source': source,
+        'activity_type': activity_type,
+        'level': level,
+        'start': start,
+        'end': end,
+        'per_page': per_page,
+    }
+    base_query = urlencode({k: v for k, v in base_query_params.items() if v not in [None, '']})
 
     # Sources / levels / activities distincts (pour dropdowns)
     distinct_sources = list(Prospect.objects.exclude(source='').exclude(source__isnull=True).values_list('source', flat=True).distinct().order_by('source'))
@@ -107,6 +147,9 @@ def prospect_list(request):
         'distinct_levels': distinct_levels,
         'distinct_activities': distinct_activities,
         'per_page': per_page,
+        'sort': sort,
+        'direction': direction,
+        'base_query': base_query,
     }
     
     # Si requête HTMX, renvoyer uniquement le template partiel

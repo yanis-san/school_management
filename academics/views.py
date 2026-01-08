@@ -20,6 +20,11 @@ def cohort_list(request):
 
     # Filtres
     year_filter = request.GET.get('year', '')  # id de l'année académique
+    # Par défaut, filtrer sur l'année académique courante (is_current=True)
+    if not year_filter:
+        current_year = AcademicYear.objects.filter(is_current=True).first()
+        if current_year:
+            year_filter = str(current_year.id)
     if year_filter:
         cohorts = cohorts.filter(academic_year__id=year_filter)
 
@@ -40,11 +45,15 @@ def cohort_list(request):
         cohorts = cohorts.filter(is_individual=False)
 
     years = AcademicYear.objects.all().order_by('-start_date')
+    auto_year_default = False
+    if request.GET.get('year', '') == '' and year_filter:
+        auto_year_default = True
 
     context = {
         'cohorts': cohorts,
         'status_filter': status_filter,
         'year_filter': year_filter,
+        'auto_year_default': auto_year_default,
         'modality_filter': modality_filter,
         'individual_filter': individual_filter,
         'years': years,
@@ -85,6 +94,7 @@ def cohort_detail(request, pk):
 
     # Récupérer toutes les séances du groupe
     sessions = cohort.sessions.select_related('teacher', 'classroom').order_by('date', 'start_time')
+    remaining_sessions = sessions.filter(status__in=['SCHEDULED', 'POSTPONED']).count()
 
     # Récupérer les inscriptions actives
     enrollments = cohort.enrollments.filter(is_active=True).select_related('student')
@@ -101,6 +111,7 @@ def cohort_detail(request, pk):
         'total_sessions': total_sessions,
         'completed_sessions': completed_sessions,
         'upcoming_sessions': upcoming_sessions,
+        'remaining_sessions': remaining_sessions,
         'today': date.today(),
     }
     return render(request, 'academics/cohort_detail.html', context)
@@ -114,52 +125,84 @@ def generate_sessions(request, pk):
     if request.method == 'POST':
         cohort = get_object_or_404(Cohort, pk=pk)
         # 1) Vérifier qu'il y a bien des créneaux hebdomadaires
-        schedules = cohort.weekly_schedules.all()
-        if not schedules.exists():
+        schedules = list(cohort.weekly_schedules.all())
+        if not schedules:
             return HttpResponse(
                 "<div class='text-red-600 font-bold'>Aucun créneau hebdomadaire (WeeklySchedule) n'est défini pour ce groupe. Créez-en d'abord dans l'admin.</div>"
             )
+        # 2) Nettoyer les séances au-delà de la nouvelle end_date (uniquement les non réalisées)
+        cohort.sessions.filter(date__gt=cohort.end_date, status__in=['SCHEDULED', 'POSTPONED']).delete()
 
-        # 2) Si déjà généré ET qu'il y a des séances, on empêche le doublon
-        if cohort.schedule_generated and cohort.sessions.exists():
-            return HttpResponse(
-                "<div class='text-red-600 font-bold'>Le planning a déjà été généré.</div>"
-            )
+        # 3) Génération incrémentale : on crée seulement les séances manquantes
+        existing_sessions = list(cohort.sessions.all())
+        existing_keys = {
+            (s.date, s.start_time, s.end_time, s.classroom_id) for s in existing_sessions
+        }
 
-        # 3) Génération manuelle (idem signal) pour garantir la création
-        if not cohort.sessions.exists():
-            current_date = cohort.start_date
-            sessions_to_create = []
+        current_date = cohort.start_date
+        sessions_to_create = []
 
-            while current_date <= cohort.end_date:
-                weekday = current_date.weekday()  # 0 = Lundi
-                for sched in schedules:
-                    if sched.day_of_week == weekday:
-                        sessions_to_create.append(
-                            CourseSession(
-                                cohort=cohort,
-                                date=current_date,
-                                start_time=sched.start_time,
-                                end_time=sched.end_time,
-                                teacher=cohort.teacher,
-                                classroom=sched.classroom,
-                                status='SCHEDULED'
-                            )
-                        )
-                current_date += timedelta(days=1)
+        while current_date <= cohort.end_date:
+            weekday = current_date.weekday()  # 0 = Lundi
+            for sched in schedules:
+                if sched.day_of_week != weekday:
+                    continue
+                key = (current_date, sched.start_time, sched.end_time, sched.classroom_id)
+                if key in existing_keys:
+                    continue
+                sessions_to_create.append(
+                    CourseSession(
+                        cohort=cohort,
+                        date=current_date,
+                        start_time=sched.start_time,
+                        end_time=sched.end_time,
+                        teacher=cohort.teacher,
+                        classroom=sched.classroom,
+                        status='SCHEDULED'
+                    )
+                )
+                existing_keys.add(key)
+            current_date += timedelta(days=1)
 
+        if sessions_to_create:
             CourseSession.objects.bulk_create(sessions_to_create)
 
-        # 4) Marquer comme généré (le signal ne recréera pas car des séances existent déjà)
         cohort.schedule_generated = True
-        cohort.save()
+        cohort.save(update_fields=['schedule_generated'])
 
-        messages.success(request, f"Planning généré avec succès pour {cohort.name}!")
+        if sessions_to_create:
+            messages.success(request, f"Planning complété pour {cohort.name} : {len(sessions_to_create)} nouvelles séances ajoutées.")
+        else:
+            messages.info(request, f"Planning déjà complet pour {cohort.name} sur la plage actuelle.")
 
         # Rediriger vers la page de détail
         return redirect('academics:detail', pk=cohort.id)
 
     return HttpResponse(status=405)  # Method Not Allowed
+
+
+def finish_cohort(request, pk):
+    """Supprime les séances non terminées et fixe la date de fin à aujourd'hui."""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+
+    cohort = get_object_or_404(Cohort, pk=pk)
+
+    pending_qs = cohort.sessions.filter(status__in=['SCHEDULED', 'POSTPONED'])
+    deleted_count = pending_qs.count()
+    pending_qs.delete()
+
+    today_date = date.today()
+    cohort.end_date = today_date
+    cohort.schedule_generated = False
+    cohort.save(update_fields=['end_date', 'schedule_generated'])
+
+    messages.success(
+        request,
+        f"Groupe clôturé : {deleted_count} séance(s) non terminée(s) supprimée(s). Date de fin fixée au {today_date.strftime('%d/%m/%Y')}.",
+    )
+
+    return redirect('academics:detail', pk=cohort.id)
 
 
 def session_detail(request, session_id):
@@ -185,13 +228,6 @@ def session_detail(request, session_id):
     # Calcul de la rémunération du prof (utilise override si présent)
     duration_hours = float(session.duration_hours)
     teacher_pay = float(duration_hours) * float(session.cohort.teacher_hourly_rate)
-    
-    # Calculer heures et minutes pour le formulaire
-    override_h = 0
-    override_m = 0
-    if session.duration_override_minutes:
-        override_h = session.duration_override_minutes // 60
-        override_m = session.duration_override_minutes % 60
 
     # Mode édition si demandé explicitement en GET (?edit=1)
     is_editing = request.GET.get('edit') == '1'
@@ -218,24 +254,31 @@ def session_detail(request, session_id):
         
         # Traitement du formulaire (reste inchangé)
         try:
-            # 1. Gérer une éventuelle surcharge de durée (facultatif)
-            clear_override = request.POST.get('clear_override') == '1'
-            override_h = request.POST.get('override_hours', '').strip()
-            override_m = request.POST.get('override_minutes', '').strip()
-
-            if clear_override:
-                session.duration_override_minutes = None
-            else:
-                if override_h or override_m:
-                    oh = int(override_h) if override_h and override_h.isdigit() else 0
-                    om = int(override_m) if override_m and override_m.isdigit() else 0
-                    total_minutes = max(0, oh * 60 + om)
-                    if total_minutes > 0:
-                        session.duration_override_minutes = total_minutes
-                        messages.info(request, f"Override enregistré: {total_minutes} min ({total_minutes/60:.1f}h)")
+            # 1. Gérer le changement de créneau horaire (NOUVEAU)
+            custom_start_time = request.POST.get('custom_start_time', '').strip()
+            custom_end_time = request.POST.get('custom_end_time', '').strip()
+            
+            if custom_start_time and custom_end_time:
+                from datetime import datetime, time as dt_time
+                try:
+                    # Parser les heures
+                    new_start = datetime.strptime(custom_start_time, '%H:%M').time()
+                    new_end = datetime.strptime(custom_end_time, '%H:%M').time()
+                    
+                    # Vérifier que l'heure de fin est après l'heure de début
+                    if new_end > new_start:
+                        session.start_time = new_start
+                        session.end_time = new_end
+                        # Calculer la nouvelle durée
+                        from datetime import datetime as dt, date
+                        duration = dt.combine(date.today(), new_end) - dt.combine(date.today(), new_start)
+                        new_duration_hours = duration.total_seconds() / 3600
+                        messages.info(request, f"Créneau horaire modifié : {new_start.strftime('%H:%M')} - {new_end.strftime('%H:%M')} ({new_duration_hours:.1f}h)")
                     else:
-                        session.duration_override_minutes = None
-
+                        messages.warning(request, "L'heure de fin doit être après l'heure de début.")
+                except ValueError:
+                    messages.warning(request, "Format d'heure invalide.")
+            
             # 2. Enregistrer la note de séance
             session_note = request.POST.get('session_note', '')
             session.note = session_note
@@ -276,8 +319,6 @@ def session_detail(request, session_id):
         'attendance_dict': attendance_dict,
         'teacher_pay': teacher_pay,
         'duration_hours': round(duration_hours, 2),
-        'override_h': override_h,
-        'override_m': override_m,
         'is_editing': is_editing,
         'available_teachers': [session.cohort.teacher] + list(session.cohort.substitute_teachers.all()),
     }

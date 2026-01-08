@@ -16,8 +16,8 @@ PROJECT_DIR = Path(__file__).resolve().parent
 # Chemin vers le venv
 VENV_PYTHON = PROJECT_DIR / '.venv' / 'Scripts' / 'python.exe'
 
-# URL du serveur
-SERVER_URL = 'http://127.0.0.1:8000'
+# URL du serveur (IP statique fixée pour hotspot)
+SERVER_URL = 'http://192.168.43.200:8000'
 
 def check_venv():
     """Vérifier que le venv existe"""
@@ -59,12 +59,10 @@ def start_server():
     return process
 
 def open_browser():
-    """Ouvrir le navigateur après un délai"""
+    """Affiche l'URL au lieu d'ouvrir le navigateur automatiquement"""
     print(f"⏳ Attente du démarrage du serveur...")
-    time.sleep(3)  # Attendre que le serveur démarre
-    
-    print(f"🌐 Ouverture de {SERVER_URL}...")
-    webbrowser.open(SERVER_URL)
+    time.sleep(3)
+    print(f"🌐 Serveur prêt sur {SERVER_URL}")
 
 def main():
     print("=" * 50)
@@ -77,7 +75,7 @@ def main():
     # Vérifier le port
     if not check_port():
         print("⚠️  Le port 8000 est déjà utilisé.")
-        print("Si le serveur tourne déjà, accédez à http://127.0.0.1:8000")
+        print(f"Si le serveur tourne déjà, accédez à {SERVER_URL}")
         input("Appuyez sur Entrée pour quitter...")
         sys.exit(1)
     
@@ -86,12 +84,12 @@ def main():
         process = start_server()
         print("✅ Serveur lancé!")
         
-        # Ouvrir le navigateur
+        # Afficher l'URL (pas d'ouverture auto)
         open_browser()
         
         print("\n" + "=" * 50)
         print("✨ L'application est prête!")
-        print("📍 URL: http://127.0.0.1:8000")
+        print(f"📍 URL: {SERVER_URL}")
         print("🛑 Pour arrêter: Fermer la fenêtre du serveur")
         print("=" * 50)
         print("\n")

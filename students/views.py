@@ -218,6 +218,7 @@ def student_list(request):
     # 1. Récupération des paramètres GET (ce qu'il y a dans l'URL ?q=yanis&cohort=1)
     search_query = request.GET.get('q', '')
     cohort_filter = request.GET.get('cohort', '')
+    fee_status_filter = request.GET.get('fee_status', '')  # Nouveau filtre: 'paid', 'unpaid', ou ''
 
     # 2. Requête de base optimisée
     students = Student.objects.prefetch_related(
@@ -240,17 +241,34 @@ def student_list(request):
     # 4. Application du Filtre par Classe (Si une classe est sélectionnée)
     if cohort_filter:
         students = students.filter(enrollments__cohort__id=cohort_filter)
+    
+    # 5. Application du Filtre par Statut des Frais d'Inscription
+    current_year = AcademicYear.get_current()
+    if fee_status_filter and current_year:
+        if fee_status_filter == 'paid':
+            # Étudiants qui ont payé les frais de l'année courante
+            students = students.filter(
+                annual_fees__academic_year=current_year,
+                annual_fees__is_paid=True
+            )
+        elif fee_status_filter == 'unpaid':
+            # Étudiants qui n'ont pas payé les frais de l'année courante
+            # Soit ils n'ont pas d'enregistrement, soit is_paid=False
+            paid_student_ids = StudentAnnualFee.objects.filter(
+                academic_year=current_year,
+                is_paid=True
+            ).values_list('student_id', flat=True)
+            students = students.exclude(id__in=paid_student_ids)
 
-    # 5. Pagination (20 étudiants par page max)
+    # 6. Pagination (20 étudiants par page max)
     paginator = Paginator(students, 20)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # 6. On récupère toutes les cohortes pour remplir la liste déroulante du filtre
+    # 7. On récupère toutes les cohortes pour remplir la liste déroulante du filtre
     all_cohorts = Cohort.objects.filter(academic_year__is_current=True)
 
     # Année académique active et frais payés (pour afficher un badge)
-    current_year = AcademicYear.get_current()
     paid_ids = set()
     if current_year:
         try:
@@ -268,6 +286,7 @@ def student_list(request):
         'students': page_obj, # On passe la page, pas toute la liste
         'search_query': search_query,
         'cohort_filter': int(cohort_filter) if cohort_filter else '',
+        'fee_status_filter': fee_status_filter,  # Nouveau paramètre
         'all_cohorts': all_cohorts,
         'annual_fee_paid_ids': paid_ids,
         'current_academic_year': current_year,

@@ -35,8 +35,13 @@
     <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
       <div class="flex-1">
         <div id="dropzone" class="dropzone rounded-md p-6 text-center text-slate-500">
-          Glissez-déposez votre CSV ici ou cliquez pour choisir
+          Glissez-déposez votre CSV ici
           <input id="fileInput" type="file" accept=".csv" class="hidden" />
+        </div>
+        <div class="mt-3 flex items-center justify-center">
+          <button id="uploadBtn" type="button" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm font-medium">
+            Choisir un fichier CSV
+          </button>
         </div>
         <div id="uploadStatus" class="mt-2 text-sm"></div>
       </div>
@@ -45,6 +50,8 @@
 
   <div class="bg-white rounded-lg shadow mb-6">
     <form method="get" class="p-4 border-b border-slate-100">
+      <input type="hidden" name="sort" value="{{ sort }}" />
+      <input type="hidden" name="dir" value="{{ direction }}" />
       <div class="grid grid-cols-1 md:grid-cols-6 gap-3">
         <div class="relative col-span-1 md:col-span-2">
           <input name="q" value="{{ q }}" placeholder="Rechercher (nom, email, téléphone)" 
@@ -52,7 +59,7 @@
                  hx-get="{% url 'prospects:list' %}"
                  hx-trigger="keyup changed delay:500ms"
                  hx-target="#prospects-tbody"
-                 hx-include="[name='converted'], [name='source'], [name='activity_type'], [name='level'], [name='start'], [name='end'], [name='per_page']" />
+                 hx-include="[name='converted'], [name='source'], [name='activity_type'], [name='level'], [name='start'], [name='end'], [name='per_page'], [name='sort'], [name='dir']" />
           <span class="absolute right-3 top-2.5 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-mono">Ctrl+K</span>
         </div>
 
@@ -103,13 +110,48 @@
       <table class="w-full table-auto">
         <thead class="bg-slate-50">
           <tr>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Nom</th>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Contact</th>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Niveau</th>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Activité</th>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Source</th>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Statut</th>
-            <th class="px-4 py-2 text-left text-slate-600 text-sm">Créé le</th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=name&dir={% if sort == 'name' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Nom
+                {% if sort == 'name' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=contact&dir={% if sort == 'contact' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Contact
+                {% if sort == 'contact' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=level&dir={% if sort == 'level' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Niveau
+                {% if sort == 'level' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=activity&dir={% if sort == 'activity' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Activité
+                {% if sort == 'activity' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=source&dir={% if sort == 'source' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Source
+                {% if sort == 'source' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=status&dir={% if sort == 'status' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Statut
+                {% if sort == 'status' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
+            <th class="px-4 py-2 text-left text-slate-600 text-sm">
+              <a class="flex items-center gap-1" href="?sort=created_at&dir={% if sort == 'created_at' and direction == 'asc' %}desc{% else %}asc{% endif %}{% if base_query %}&{{ base_query }}{% endif %}">
+                Créé le
+                {% if sort == 'created_at' %}<span class="text-xs">{% if direction == 'asc' %}↑{% else %}↓{% endif %}</span>{% endif %}
+              </a>
+            </th>
             <th class="px-4 py-2 text-left text-slate-600 text-sm">Actions</th>
           </tr>
         </thead>
@@ -165,12 +207,12 @@
       <div class="text-sm text-slate-600">Page {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</div>
       <div class="flex items-center gap-2">
         {% if page_obj.has_previous %}
-          <a class="btn btn-muted" href="?page={{ page_obj.previous_page_number }}&per_page={{ per_page }}&q={{ q }}&converted={{ f_converted }}&source={{ f_source }}&activity_type={{ f_activity_type }}&level={{ f_level }}&start={{ f_start }}&end={{ f_end }}">Précédent</a>
+          <a class="btn btn-muted" href="?page={{ page_obj.previous_page_number }}&sort={{ sort }}&dir={{ direction }}{% if base_query %}&{{ base_query }}{% endif %}">Précédent</a>
         {% else %}
           <button class="btn btn-muted" disabled>Précédent</button>
         {% endif %}
         {% if page_obj.has_next %}
-          <a class="btn btn-muted" href="?page={{ page_obj.next_page_number }}&per_page={{ per_page }}&q={{ q }}&converted={{ f_converted }}&source={{ f_source }}&activity_type={{ f_activity_type }}&level={{ f_level }}&start={{ f_start }}&end={{ f_end }}">Suivant</a>
+          <a class="btn btn-muted" href="?page={{ page_obj.next_page_number }}&sort={{ sort }}&dir={{ direction }}{% if base_query %}&{{ base_query }}{% endif %}">Suivant</a>
         {% else %}
           <button class="btn btn-muted" disabled>Suivant</button>
         {% endif %}
@@ -201,8 +243,10 @@
       uploadStatus.className = `mt-2 text-sm ${cls||''}`;
       uploadStatus.textContent = msg;
     }
-
-    dropzone.addEventListener('click', () => fileInput.click());
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (uploadBtn) {
+      uploadBtn.addEventListener('click', () => fileInput.click());
+    }
     dropzone.addEventListener('dragover', (e) => {
       e.preventDefault();
       dropzone.classList.add('dragover');

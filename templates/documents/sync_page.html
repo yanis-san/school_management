@@ -1,0 +1,341 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Synchronisation Globale{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8 max-w-7xl">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-8">
+        <div>
+            <h1 class="text-3xl font-bold text-gray-900 mb-2">🔄 Synchronisation Globale</h1>
+            <p class="text-gray-600">Exportez et importez toutes les données de l'institut en un clic</p>
+        </div>
+        <a href="{% url 'documents:sync_history' %}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700">
+            📜 Historique
+        </a>
+    </div>
+
+    <!-- Export Section -->
+    <div class="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-lg shadow-md p-6 mb-6 border-2 border-emerald-200">
+        <h2 class="text-2xl font-bold text-emerald-800 mb-4">📥 Exporter (PC1)</h2>
+        <p class="text-gray-700 mb-4">Créez un fichier ZIP contenant toutes les données de votre base :</p>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-sm">
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">👥 Étudiants</div>
+                <div class="text-gray-600">Tous les profils</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">📚 Cohorts</div>
+                <div class="text-gray-600">Groupes et cours</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">📅 Sessions</div>
+                <div class="text-gray-600">Toutes les séances</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">✅ Présences</div>
+                <div class="text-gray-600">Historique complet</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">💰 Paiements</div>
+                <div class="text-gray-600">Étudiants & Profs</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">📋 Inscriptions</div>
+                <div class="text-gray-600">Tous les contrats</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">🏷️ Tarifs</div>
+                <div class="text-gray-600">Prix et réductions</div>
+            </div>
+            <div class="bg-white rounded p-3 shadow-sm">
+                <div class="font-semibold text-emerald-700">📖 Matières</div>
+                <div class="text-gray-600">Niveaux et sujets</div>
+            </div>
+        </div>
+
+        <a href="{% url 'documents:export_global_sync' %}" 
+           class="inline-flex items-center px-6 py-3 bg-emerald-600 text-white font-semibold rounded-lg shadow-lg hover:bg-emerald-700 transform hover:scale-105 transition duration-200">
+            <svg class="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Télécharger le ZIP de synchronisation
+        </a>
+        
+        <div class="mt-4 text-sm text-gray-600">
+            <strong>📦 Contient :</strong> 14 fichiers CSV (students.csv, cohorts.csv, sessions.csv, presences.csv, etc.)
+        </div>
+    </div>
+
+    <!-- Import Section -->
+    <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border-2 border-blue-200">
+        <h2 class="text-2xl font-bold text-blue-800 mb-4">📤 Importer & Synchroniser (PC2)</h2>
+        <p class="text-gray-700 mb-4">Glissez votre fichier ZIP ou cliquez pour le sélectionner :</p>
+        
+        <!-- Drag & Drop Zone -->
+        <div id="dropZone" 
+             class="border-4 border-dashed border-blue-300 rounded-lg p-12 text-center bg-white hover:bg-blue-50 transition cursor-pointer mb-4">
+            <svg class="w-16 h-16 mx-auto mb-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+            </svg>
+            <p class="text-xl font-semibold text-gray-700 mb-2">Glissez votre fichier ZIP ici</p>
+            <p class="text-gray-500 mb-4">ou cliquez pour sélectionner</p>
+            <input type="file" id="syncFileInput" accept=".zip" class="hidden" />
+            <button onclick="document.getElementById('syncFileInput').click()" 
+                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-semibold">
+                Choisir un fichier
+            </button>
+        </div>
+
+        <!-- Selected File Display -->
+        <div id="selectedFile" class="hidden bg-blue-100 border border-blue-300 rounded-lg p-4 mb-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center">
+                    <svg class="w-8 h-8 text-blue-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    <div>
+                        <p class="font-semibold text-gray-800" id="fileName"></p>
+                        <p class="text-sm text-gray-600" id="fileSize"></p>
+                    </div>
+                </div>
+                <button onclick="clearFile()" class="text-red-600 hover:text-red-800">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Import Button -->
+        <button id="importBtn" 
+                onclick="importSync()" 
+                disabled
+                class="w-full px-6 py-4 bg-blue-600 text-white font-bold text-lg rounded-lg shadow-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transform hover:scale-[1.02] transition duration-200">
+            🚀 Lancer la Synchronisation
+        </button>
+
+        <!-- Warning -->
+        <div class="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+            <div class="flex">
+                <svg class="w-6 h-6 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div>
+                    <p class="font-semibold text-yellow-800">🔒 Sauvegarde automatique</p>
+                    <p class="text-sm text-yellow-700">Un backup PostgreSQL sera créé avant toute importation</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="hidden mt-6 bg-white rounded-lg shadow-md p-6 border-2 border-gray-200">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">📊 Résultats de la Synchronisation</h2>
+            <a id="detailLink" href="#" class="hidden px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                Voir les Détails Complets →
+            </a>
+        </div>
+        <div id="resultsContent"></div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-8 shadow-2xl max-w-md">
+            <div class="flex items-center justify-center mb-4">
+                <svg class="animate-spin h-12 w-12 text-blue-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </div>
+            <p class="text-xl font-semibold text-center text-gray-800">Synchronisation en cours...</p>
+            <p class="text-center text-gray-600 mt-2">Création du backup et importation des données</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('syncFileInput');
+    const selectedFileDiv = document.getElementById('selectedFile');
+    const importBtn = document.getElementById('importBtn');
+    let currentFile = null;
+
+    // Drag & Drop handlers
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-blue-500', 'bg-blue-100');
+    });
+
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-500', 'bg-blue-100');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-blue-500', 'bg-blue-100');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+
+    function handleFile(file) {
+        if (!file.name.endsWith('.zip')) {
+            alert('⚠️ Erreur : Seuls les fichiers ZIP sont acceptés');
+            return;
+        }
+
+        currentFile = file;
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = formatFileSize(file.size);
+        selectedFileDiv.classList.remove('hidden');
+        importBtn.disabled = false;
+    }
+
+    function clearFile() {
+        currentFile = null;
+        fileInput.value = '';
+        selectedFileDiv.classList.add('hidden');
+        importBtn.disabled = true;
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    async function importSync() {
+        if (!currentFile) return;
+
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsContent = document.getElementById('resultsContent');
+
+        loadingOverlay.classList.remove('hidden');
+        resultsSection.classList.add('hidden');
+
+        const formData = new FormData();
+        formData.append('sync_file', currentFile);
+
+        try {
+            const response = await fetch("{% url 'documents:import_global_sync' %}", {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: formData
+            });
+
+            const data = await response.json();
+            loadingOverlay.classList.add('hidden');
+
+            if (data.success) {
+                displayResults(data);
+                resultsSection.classList.remove('hidden');
+                clearFile();
+                // Ajouter lien vers détails après 3 secondes
+                setTimeout(() => {
+                    const detailLink = document.getElementById('detailLink');
+                    if (data.sync_log_id && detailLink) {
+                        detailLink.href = `/documents/sync/detail/${data.sync_log_id}/`;
+                        detailLink.classList.remove('hidden');
+                    }
+                }, 1000);
+            } else {
+                alert('❌ Erreur : ' + (data.error || 'Échec de la synchronisation'));
+            }
+        } catch (error) {
+            loadingOverlay.classList.add('hidden');
+            alert('❌ Erreur réseau : ' + error.message);
+        }
+    }
+
+    function displayResults(data) {
+        const resultsContent = document.getElementById('resultsContent');
+        
+        let html = '';
+        
+        // Backup info
+        if (data.backup_created) {
+            const bgColor = data.backup_created ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200';
+            const textColor = data.backup_created ? 'text-green-800' : 'text-yellow-800';
+            html += `
+                <div class="${bgColor} border rounded-lg p-4 mb-6">
+                    <p class="font-semibold ${textColor} mb-1">${data.backup_created ? '✅ Backup créé' : '⚠️ Backup'}</p>
+                    <p class="text-sm ${textColor}">${data.backup_message}</p>
+                    ${data.backup_path ? `<p class="text-xs ${textColor} mt-1 font-mono">${data.backup_path}</p>` : ''}
+                </div>
+            `;
+        }
+
+        // Stats by category
+        const categories = [
+            { key: 'subjects', label: 'Matières', icon: '📖' },
+            { key: 'levels', label: 'Niveaux', icon: '🎓' },
+            { key: 'tariffs', label: 'Tarifs', icon: '🏷️' },
+            { key: 'discounts', label: 'Réductions', icon: '🎫' },
+            { key: 'students', label: 'Étudiants', icon: '👥' },
+            { key: 'cohorts', label: 'Cohorts', icon: '📚' },
+            { key: 'sessions', label: 'Sessions', icon: '📅' },
+            { key: 'enrollments', label: 'Inscriptions', icon: '📋' },
+            { key: 'presences', label: 'Présences', icon: '✅' },
+            { key: 'paiements_etudiants', label: 'Paiements Étudiants', icon: '💰' },
+            { key: 'paiements_profs', label: 'Paiements Profs', icon: '💵' }
+        ];
+
+        html += '<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+        
+        categories.forEach(cat => {
+            const added = data[`${cat.key}_added`] || 0;
+            const updated = data[`${cat.key}_updated`] || 0;
+            const deleted = data[`${cat.key}_deleted`] || 0;
+            const total = added + updated + deleted;
+
+            if (total > 0) {
+                html += `
+                    <div class="bg-white border-2 border-gray-200 rounded-lg p-4 hover:shadow-lg transition">
+                        <div class="flex items-center mb-3">
+                            <span class="text-3xl mr-3">${cat.icon}</span>
+                            <span class="font-bold text-gray-800">${cat.label}</span>
+                        </div>
+                        <div class="space-y-1 text-sm">
+                            ${added > 0 ? `<div class="text-green-600">✨ ${added} ajouté(s)</div>` : ''}
+                            ${updated > 0 ? `<div class="text-blue-600">🔄 ${updated} mis à jour</div>` : ''}
+                            ${deleted > 0 ? `<div class="text-red-600">🗑️ ${deleted} supprimé(s)</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        });
+
+        html += '</div>';
+
+        // Errors if any
+        if (data.errors && data.errors.length > 0) {
+            html += `
+                <div class="mt-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p class="font-semibold text-red-800 mb-2">⚠️ Erreurs détectées (${data.errors.length})</p>
+                    <ul class="text-sm text-red-700 list-disc list-inside">
+                        ${data.errors.slice(0, 10).map(err => `<li>${err}</li>`).join('')}
+                    </ul>
+                </div>
+            `;
+        }
+
+        resultsContent.innerHTML = html;
+    }
+</script>
+{% endblock %}

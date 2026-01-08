@@ -21,7 +21,29 @@
     </div>
 
     <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-        <form method="get" class="flex flex-col md:flex-row gap-4">
+        <form method="get" class="flex flex-col gap-4">
+            
+            <!-- Boutons de filtrage des frais d'inscription -->
+            {% if current_academic_year %}
+            <div class="flex flex-wrap gap-2">
+                <a href="{% url 'students:list' %}?fee_status=paid{% if cohort_filter %}&cohort={{ cohort_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}"
+                   class="{% if fee_status_filter == 'paid' %}bg-green-600 text-white{% else %}bg-white text-green-600 border border-green-300 hover:bg-green-50{% endif %} px-4 py-2 rounded-lg font-medium text-sm transition shadow-sm flex items-center gap-2">
+                    <span>✓</span> Frais {{ current_academic_year.label }} Payés
+                </a>
+                <a href="{% url 'students:list' %}?fee_status=unpaid{% if cohort_filter %}&cohort={{ cohort_filter }}{% endif %}{% if search_query %}&q={{ search_query }}{% endif %}"
+                   class="{% if fee_status_filter == 'unpaid' %}bg-red-600 text-white{% else %}bg-white text-red-600 border border-red-300 hover:bg-red-50{% endif %} px-4 py-2 rounded-lg font-medium text-sm transition shadow-sm flex items-center gap-2">
+                    <span>✗</span> Frais {{ current_academic_year.label }} Non Payés
+                </a>
+                {% if fee_status_filter %}
+                <a href="{% url 'students:list' %}{% if cohort_filter %}?cohort={{ cohort_filter }}{% endif %}{% if search_query %}{% if cohort_filter %}&{% else %}?{% endif %}q={{ search_query }}{% endif %}"
+                   class="bg-gray-200 text-gray-700 hover:bg-gray-300 px-4 py-2 rounded-lg font-medium text-sm transition shadow-sm flex items-center gap-2">
+                    <span>⟲</span> Tous les étudiants
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+            
+            <div class="flex flex-col md:flex-row gap-4">
             
             <div class="flex-1 relative">
                 <span class="absolute left-3 top-2.5 text-gray-400">🔍</span>
@@ -31,7 +53,7 @@
                        hx-get="{% url 'students:list' %}"
                        hx-trigger="keyup changed delay:500ms"
                        hx-target="#students-tbody"
-                       hx-include="[name='cohort']">
+                       hx-include="[name='cohort'], [name='fee_status']">
                 <span class="absolute right-3 top-2.5 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded border border-gray-200 font-mono">Ctrl+K</span>
             </div>
 
@@ -45,14 +67,18 @@
                     {% endfor %}
                 </select>
             </div>
+            
+            <!-- Champ caché pour préserver le filtre de frais lors de la soumission du formulaire -->
+            <input type="hidden" name="fee_status" value="{{ fee_status_filter }}">
 
-            {% if search_query or cohort_filter %}
+            {% if search_query or cohort_filter or fee_status_filter %}
                 <a href="{% url 'students:list' %}" class="px-4 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
                     Réinitialiser
                 </a>
             {% endif %}
             
             <button type="submit" class="md:hidden bg-gray-800 text-white px-4 py-2 rounded-lg">Filtrer</button>
+            </div>
         </form>
     </div>
 
@@ -150,6 +176,9 @@
                 <div class="mt-3 pt-3 border-t border-gray-100 flex gap-2">
                     <a href="{% url 'students:detail' student.id %}" class="flex-1 text-center text-indigo-600 hover:text-indigo-900 font-medium text-sm border border-indigo-200 hover:border-indigo-600 px-3 py-2 rounded-lg transition">
                         Gérer
+                    </a>
+                    <a href="{% url 'documents:download_student_complete' student.id %}" class="text-green-600 hover:text-green-900 font-medium text-sm border border-green-200 hover:border-green-600 px-3 py-2 rounded-lg transition" title="Dossier complet PDF">
+                        📄
                     </a>
                     <button onclick="deleteStudent({{ student.id }}, '{{ student.first_name }} {{ student.last_name }}')" class="text-red-600 hover:text-red-900 font-medium text-sm border border-red-200 hover:border-red-600 px-3 py-2 rounded-lg transition">
                         🗑️
@@ -258,6 +287,9 @@
                             <a href="{% url 'students:detail' student.id %}" class="text-indigo-600 hover:text-indigo-900 font-medium text-xs lg:text-sm border border-indigo-200 hover:border-indigo-600 px-2 lg:px-3 py-1 rounded-lg transition">
                                 Gérer
                             </a>
+                            <a href="{% url 'documents:download_student_complete' student.id %}" class="text-green-600 hover:text-green-900 font-medium text-xs lg:text-sm border border-green-200 hover:border-green-600 px-2 lg:px-3 py-1 rounded-lg transition" title="Dossier complet PDF">
+                                📄
+                            </a>
                             <button onclick="deleteStudent({{ student.id }}, '{{ student.first_name }} {{ student.last_name }}')" class="text-red-600 hover:text-red-900 font-medium text-xs lg:text-sm border border-red-200 hover:border-red-600 px-2 lg:px-3 py-1 rounded-lg transition">
                                 🗑️
                             </button>
@@ -285,7 +317,7 @@
                 <div>
                     <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                         {% if students.has_previous %}
-                            <a href="?page={{ students.previous_page_number }}&q={{ search_query }}&cohort={{ cohort_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <a href="?page={{ students.previous_page_number }}&q={{ search_query }}&cohort={{ cohort_filter }}&fee_status={{ fee_status_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                                 Précédent
                             </a>
                         {% endif %}
@@ -295,7 +327,7 @@
                         </span>
 
                         {% if students.has_next %}
-                            <a href="?page={{ students.next_page_number }}&q={{ search_query }}&cohort={{ cohort_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                            <a href="?page={{ students.next_page_number }}&q={{ search_query }}&cohort={{ cohort_filter }}&fee_status={{ fee_status_filter }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                                 Suivant
                             </a>
                         {% endif %}
