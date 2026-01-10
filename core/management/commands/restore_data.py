@@ -16,10 +16,16 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument(
+            "backup_file",
+            nargs="?",
+            default=None,
+            help="Path to backup ZIP file. If omitted, the latest school_backup_*.zip in BACKUP_DIR is used.",
+        )
+        parser.add_argument(
             "--file",
             dest="file",
             default=None,
-            help="Path to backup ZIP file. If omitted, the latest school_backup_*.zip in BACKUP_DIR is used.",
+            help="[DEPRECATED] Use positional argument instead. Path to backup ZIP file.",
         )
         parser.add_argument(
             "--force",
@@ -72,7 +78,8 @@ class Command(BaseCommand):
                 self.stdout.write(f"     Size: {size_mb:.2f} MB\n")
             return
         
-        backup_file = options["file"]
+        # Utiliser le nouvel argument positionnel ou l'option --file (legacy)
+        backup_file = options["backup_file"] or options["file"]
         only_db = options.get("only_db")
         only_media = options.get("only_media")
         if only_db and only_media:
@@ -85,9 +92,23 @@ class Command(BaseCommand):
             backup_path = candidates[0]
             self.stdout.write(self.style.NOTICE(f"Using latest backup: {backup_path.name}"))
         else:
-            backup_path = Path(backup_file)
+            # Essayer le chemin comme donné (absolu ou relatif au cwd)
+            backup_path = Path(backup_file).resolve()
+            
+            # Si le fichier n'existe pas et que le chemin est relatif, essayer depuis BASE_DIR
+            if not backup_path.exists() and not Path(backup_file).is_absolute():
+                alternative_path = Path(settings.BASE_DIR) / backup_file
+                if alternative_path.exists():
+                    backup_path = alternative_path
+            
             if not backup_path.exists():
-                raise CommandError(f"Backup file not found: {backup_path}")
+                raise CommandError(
+                    f"Backup file not found: {backup_file}\n"
+                    f"Essayé:\n"
+                    f"  1. Comme chemin absolu/relatif: {Path(backup_file).resolve()}\n"
+                    f"  2. Depuis BASE_DIR: {Path(settings.BASE_DIR) / backup_file}\n"
+                    f"Utilisez un chemin absolu ou utilisez --list pour voir les backups disponibles"
+                )
 
         # Confirm
         if not options.get("force"):

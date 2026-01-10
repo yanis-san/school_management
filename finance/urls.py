@@ -7,6 +7,8 @@ app_name = 'finance'
 urlpatterns = [
     # Paiements étudiants
     path('payment/add/<int:enrollment_id>/', views.add_payment, name='add_payment'),
+    path('payment/delete/<int:payment_id>/', views.delete_payment, name='delete_payment'),
+    path('payment/edit/<int:payment_id>/', views.edit_payment, name='edit_payment'),
     
     # Dashboard paiements
     path('payments-dashboard/', views.payment_status_dashboard, name='payment_status_dashboard'),

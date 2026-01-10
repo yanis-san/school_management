@@ -235,7 +235,8 @@ def student_list(request):
             Q(last_name__icontains=search_query) | 
             Q(first_name__icontains=search_query) |
             Q(student_code__icontains=search_query) |
-            Q(email__icontains=search_query)
+            Q(email__icontains=search_query) |
+            Q(phone__icontains=search_query)
         )
 
     # 4. Application du Filtre par Classe (Si une classe est sélectionnée)

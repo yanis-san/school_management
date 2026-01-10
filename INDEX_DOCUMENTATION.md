@@ -45,6 +45,7 @@ Bienvenue! Voici l'index de toute la documentation du **Tableau de Bord Paiement
 | [`QUICK_START_PAIEMENTS.md`](./QUICK_START_PAIEMENTS.md) | 5 min | Utilisateurs | Démarrage rapide + 10 cas d'usage |
 | [`README_DASHBOARD_PAIEMENTS.md`](./README_DASHBOARD_PAIEMENTS.md) | 15 min | Utilisateurs | Résumé complet du système |
 | [`GUIDE_TABLEAU_PAIEMENTS.md`](./GUIDE_TABLEAU_PAIEMENTS.md) | 30 min | Utilisateurs | Guide détaillé avec screenshots |
+| [`GUIDE_SAUVEGARDE_COMPLET.md`](./GUIDE_SAUVEGARDE_COMPLET.md) | 15 min | Administrateurs | **NOUVEAU** Sauvegarde et restauration |
 | [`ACCES_RAPIDE_URLS.md`](./ACCES_RAPIDE_URLS.md) | 10 min | Utilisateurs | URLs et paramètres |
 | [`IMPLEMENTATION_DASHBOARD_PAIEMENTS.md`](./IMPLEMENTATION_DASHBOARD_PAIEMENTS.md) | 20 min | Développeurs | Architecture et code |
 | [`CHANGELOG_DASHBOARD_PAIEMENTS.md`](./CHANGELOG_DASHBOARD_PAIEMENTS.md) | 5 min | Développeurs | Changements et versions |

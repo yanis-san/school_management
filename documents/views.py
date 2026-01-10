@@ -18,7 +18,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import cm
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, Image
 
 from academics.models import Cohort, CourseSession
 from core.models import AcademicYear
@@ -28,6 +28,11 @@ from students.models import Enrollment, Student, Attendance
 
 def _logo_path():
     """Retourne le chemin absolu du logo s'il existe."""
+    # Chercher d'abord à la racine
+    candidate = settings.BASE_DIR / 'logo.png'
+    if candidate.exists():
+        return candidate
+    # Sinon chercher dans static
     candidate = settings.BASE_DIR / 'static' / 'images' / 'logo_horizontal.png'
     return candidate if candidate.exists() else None
 
@@ -54,6 +59,36 @@ def _header_footer_maker(title: str):
         canvas_obj.line(1.5 * cm, 1.6 * cm, width - 1.5 * cm, 1.6 * cm)
         canvas_obj.setFont('Helvetica', 8)
         canvas_obj.drawString(1.5 * cm, 1.2 * cm, "Institut Torii - Généré automatiquement")
+        canvas_obj.drawRightString(width - 1.5 * cm, 1.2 * cm, f"Généré le {generated}")
+
+    return _draw
+
+
+def _attendance_header_footer(cohort_name: str, date_str: str, time_str: str, teacher_name: str):
+    """En-tête spécial pour les feuilles de présence avec toutes les infos du groupe."""
+    generated = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+    logo = _logo_path()
+
+    def _draw(canvas_obj, doc):
+        width, height = doc.pagesize
+        canvas_obj.setStrokeColor(colors.lightgrey)
+        canvas_obj.setLineWidth(0.5)
+
+        # Logo tout à gauche, plus bas et plus gros
+        if logo:
+            canvas_obj.drawImage(str(logo), 1.5 * cm, height - 3.2 * cm, width=2.5 * cm, preserveAspectRatio=True, mask='auto')
+        
+        # Infos du groupe à gauche
+        canvas_obj.setFont('Helvetica-Bold', 11)
+        canvas_obj.drawString(1.5 * cm, height - 1.8 * cm, f"Groupe : {cohort_name}")
+        canvas_obj.setFont('Helvetica', 9)
+        canvas_obj.drawString(1.5 * cm, height - 2.3 * cm, f"Date : {date_str}  |  Horaire : {time_str}")
+        canvas_obj.drawString(1.5 * cm, height - 2.7 * cm, f"Professeur : {teacher_name}")
+
+        # Footer
+        canvas_obj.line(1.5 * cm, 1.6 * cm, width - 1.5 * cm, 1.6 * cm)
+        canvas_obj.setFont('Helvetica', 8)
+        canvas_obj.drawString(1.5 * cm, 1.2 * cm, "Institut Torii")
         canvas_obj.drawRightString(width - 1.5 * cm, 1.2 * cm, f"Généré le {generated}")
 
     return _draw
@@ -390,7 +425,7 @@ def download_cohort_attendance(request, cohort_id):
         story.append(Paragraph("Légende : ✓ Présent | ✗ Absent | ⌚ Retard | E Excusé", normal))
 
     filename = f"Presence_{cohort.name.replace(' ', '_')}.pdf"
-    return _build_pdf_response(filename, f"Présence {cohort.name}", build_story, pagesize=landscape(A4))
+    return _build_pdf_response(filename, f"Présence {cohort.name}", build_story, pagesize=A4)
 
 
 @login_required
@@ -413,19 +448,14 @@ def download_session_attendance(request, session_id):
     def build_story(story, styles):
         h1 = styles['Heading1']
         normal = styles['BodyText']
-        story.append(Paragraph(f"Présence – {session.cohort.name}", h1))
-        story.append(Spacer(1, 0.2 * cm))
-        story.append(Paragraph(f"Date : {session.date.strftime('%d/%m/%Y')} | Horaire : {session.display_start_time.strftime('%H:%M')} – {session.display_end_time.strftime('%H:%M')}", normal))
-        story.append(Paragraph(f"Professeur : {session.teacher.get_full_name()}", normal))
-        story.append(Spacer(1, 0.3 * cm))
+        story.append(Paragraph("FEUILLE DE PRÉSENCE", h1))
+        story.append(Spacer(1, 0.5 * cm))
 
-        data = [["N°", "Étudiant", "Statut", "Signature"]]
+        data = [["N°", "Étudiant", "Signature"]]
         for idx, enr in enumerate(enrollments, 1):
-            # Par défaut "Présent" pour la feuille d'émargement, sauf si un statut est déjà enregistré
-            status_display = STATUS_LABELS.get(att.get(enr.student_id, 'PRESENT'), 'Présent')
-            data.append([idx, f"{enr.student.last_name} {enr.student.first_name}", status_display, ""])
+            data.append([idx, f"{enr.student.last_name} {enr.student.first_name}", ""])
 
-        table = Table(data, repeatRows=1, hAlign='LEFT', colWidths=[1.2*cm,7*cm,4*cm,5*cm])
+        table = Table(data, repeatRows=1, hAlign='LEFT', colWidths=[1.5*cm, 8*cm, 5*cm], rowHeights=[0.6*cm] + [1.4*cm]*len(enrollments))
         table.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -435,14 +465,48 @@ def download_session_attendance(request, session_id):
             ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
         ]))
         story.append(table)
+        
+        # Section notes
+        story.append(Spacer(1, 0.8 * cm))
+        story.append(Paragraph("<b>Notes sur la séance :</b>", normal))
+        story.append(Spacer(1, 4 * cm))
 
     filename = f"Presence_{session.cohort.name.replace(' ', '_')}_{session.date.strftime('%Y%m%d')}.pdf"
-    return _build_pdf_response(filename, f"Présence {session.cohort.name}", build_story)
+    
+    # Utiliser l'en-tête spécial avec toutes les infos
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=1.5 * cm,
+        rightMargin=1.5 * cm,
+        topMargin=3.5 * cm,
+        bottomMargin=2.2 * cm,
+    )
+    styles = getSampleStyleSheet()
+    story = []
+    build_story(story, styles)
+    
+    header_footer = _attendance_header_footer(
+        cohort_name=session.cohort.name,
+        date_str=session.date.strftime('%d/%m/%Y'),
+        time_str=f"{session.display_start_time.strftime('%H:%M')} - {session.display_end_time.strftime('%H:%M')}",
+        teacher_name=session.teacher.get_full_name()
+    )
+    doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer.read(), content_type='application/pdf')
+    from urllib.parse import quote
+    encoded_filename = quote(filename)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"; filename*=UTF-8\'\'\'{encoded_filename}'
+    return response
 
 
-def _generate_pdf_bytes(title: str, build_story, pagesize=None):
+def _generate_pdf_bytes(title: str, build_story, pagesize=None, header_footer=None):
     """Helper : génère les bytes PDF sans réponse HTTP.
     pagesize: override page size (default landscape A4)
+    header_footer: custom header/footer function (default uses title)
     """
     buffer = BytesIO()
     doc = SimpleDocTemplate(
@@ -450,14 +514,15 @@ def _generate_pdf_bytes(title: str, build_story, pagesize=None):
         pagesize=(pagesize or landscape(A4)),
         leftMargin=1.5 * cm,
         rightMargin=1.5 * cm,
-        topMargin=3 * cm,
+        topMargin=3.5 * cm if header_footer else 3 * cm,
         bottomMargin=2.2 * cm,
     )
     styles = getSampleStyleSheet()
     story = []
     build_story(story, styles)
 
-    header_footer = _header_footer_maker(title)
+    if header_footer is None:
+        header_footer = _header_footer_maker(title)
     doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
 
     buffer.seek(0)
@@ -570,7 +635,7 @@ def download_cohort_zip(request, cohort_id):
             story.append(Spacer(1, 0.2 * cm))
             story.append(Paragraph("Légende : ✓ Présent | ✗ Absent | ⌚ Retard | E Excusé", normal))
 
-        att_pdf = _generate_pdf_bytes(f"Présence {cohort.name}", build_att_story)
+        att_pdf = _generate_pdf_bytes(f"Présence {cohort.name}", build_att_story, pagesize=A4)
         zf.writestr(f"{cohort.name.replace(' ', '_')}/02_Presences.pdf", att_pdf)
 
     zip_buffer.seek(0)
@@ -1303,24 +1368,22 @@ def download_cohort_complete_zip(request, cohort_id):
         zf.writestr("03_Paiements_Professeur.pdf", teacher_pay_pdf)
         
         # 4. Listes de présence pour chaque séance
+        attendance_pdfs = []  # Pour collecter les PDFs à fusionner
         for idx, session in enumerate(sessions, 1):
             att_dict = {a.student_id: a.status for a in Attendance.objects.filter(session=session)}
             STATUS_LABELS = {'PRESENT': 'Présent', 'ABSENT': 'Absent', 'LATE': 'En Retard', 'EXCUSED': 'Excusé'}
             
             def build_attendance(story, styles):
-                h1, normal = styles['Heading1'], styles['BodyText']
-                story.append(Paragraph(f"PRÉSENCE - Séance {idx}/{sessions.count()}", h1))
-                story.append(Spacer(1, 0.2 * cm))
-                story.append(Paragraph(f"Date : {session.date.strftime('%d/%m/%Y')} | {session.display_start_time.strftime('%H:%M')} - {session.display_end_time.strftime('%H:%M')}", normal))
-                story.append(Paragraph(f"Professeur : {session.teacher.get_full_name()}", normal))
-                story.append(Spacer(1, 0.3 * cm))
+                h1 = styles['Heading1']
+                normal = styles['BodyText']
+                story.append(Paragraph(f"FEUILLE DE PRÉSENCE - Séance {idx}/{sessions.count()}", h1))
+                story.append(Spacer(1, 0.5 * cm))
                 
-                data = [["N°", "Étudiant", "Statut", "Signature"]]
+                data = [["N°", "Étudiant", "Signature"]]
                 for i, enr in enumerate(enrollments, 1):
-                    status = STATUS_LABELS.get(att_dict.get(enr.student_id, 'PRESENT'), 'Présent')
-                    data.append([i, f"{enr.student.last_name} {enr.student.first_name}", status, ""])
+                    data.append([i, f"{enr.student.last_name} {enr.student.first_name}", ""])
                 
-                table = Table(data, repeatRows=1, colWidths=[1.2*cm, 7*cm, 4*cm, 5*cm])
+                table = Table(data, repeatRows=1, colWidths=[1.5*cm, 8*cm, 5*cm], rowHeights=[0.6*cm] + [1.4*cm]*len(enrollments))
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
@@ -1329,10 +1392,40 @@ def download_cohort_complete_zip(request, cohort_id):
                     ('ALIGN', (0,0), (0,-1), 'CENTER'),
                 ]))
                 story.append(table)
+                
+                # Section notes
+                story.append(Spacer(1, 0.8 * cm))
+                story.append(Paragraph("<b>Notes sur la séance :</b>", normal))
+                story.append(Spacer(1, 4 * cm))
             
-            att_pdf = _generate_pdf_bytes(f"Présence Séance {idx}", build_attendance)
+            # Utiliser l'en-tête personnalisé avec toutes les infos
+            custom_header = _attendance_header_footer(
+                cohort_name=cohort.name,
+                date_str=session.date.strftime('%d/%m/%Y'),
+                time_str=f"{session.display_start_time.strftime('%H:%M')} - {session.display_end_time.strftime('%H:%M')}",
+                teacher_name=session.teacher.get_full_name()
+            )
+            att_pdf = _generate_pdf_bytes(f"Présence Séance {idx}", build_attendance, pagesize=A4, header_footer=custom_header)
             filename = f"04_Presences/Seance_{idx:02d}_{session.date.strftime('%Y%m%d')}.pdf"
             zf.writestr(filename, att_pdf)
+            
+            # Collecter pour fusion
+            attendance_pdfs.append(att_pdf)
+        
+        # 4.5. Fusionner tous les PDFs de présence en un seul
+        if attendance_pdfs:
+            from pypdf import PdfWriter, PdfReader
+            merger = PdfWriter()
+            
+            for pdf_bytes in attendance_pdfs:
+                pdf_reader = PdfReader(BytesIO(pdf_bytes))
+                for page in pdf_reader.pages:
+                    merger.add_page(page)
+            
+            merged_buffer = BytesIO()
+            merger.write(merged_buffer)
+            merged_buffer.seek(0)
+            zf.writestr("04_Presences/00_TOUTES_LES_PRESENCES.pdf", merged_buffer.read())
         
         # 5. Rapport des absences
         def build_absences(story, styles):

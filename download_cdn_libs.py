@@ -25,6 +25,9 @@ DOWNLOADS = {
     # Alpine.js
     "https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js": JS_DIR / "alpinejs.min.js",
     
+    # Alpine.js Collapse Plugin
+    "https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.13.3/dist/cdn.min.js": JS_DIR / "alpine-collapse.min.js",
+    
     # Chart.js
     "https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js": JS_DIR / "chart.umd.js",
 }

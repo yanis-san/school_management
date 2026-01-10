@@ -1,14 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Nouveau Paiement{% endblock %}
+{% block title %}Modifier Paiement{% endblock %}
 
 {% block content %}
 <div class="max-w-lg mx-auto mt-10">
-    
     <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-        
         <div class="bg-indigo-600 p-6 text-white">
-            <h2 class="text-xl font-bold">Encaisser un Paiement</h2>
+            <h2 class="text-xl font-bold">Modifier un Paiement</h2>
             <p class="opacity-90 text-sm mt-1">
                 Pour : {{ student.first_name }} {{ student.last_name }}
             </p>
@@ -18,7 +16,6 @@
         </div>
 
         <div class="p-6">
-            <!-- Messages d'erreur -->
             {% if messages %}
                 {% for message in messages %}
                 <div class="mb-4 p-4 rounded-lg {% if message.tags == 'error' %}bg-red-50 border border-red-200 text-red-800{% else %}bg-green-50 border border-green-200 text-green-800{% endif %}">
@@ -26,22 +23,16 @@
                 </div>
                 {% endfor %}
             {% endif %}
-            
-            <div class="mb-6 p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm border border-yellow-100 flex justify-between items-center">
-                <span>Reste à payer sur ce contrat :</span>
-                <span class="font-bold text-lg">{{ enrollment.balance_due }} DA</span>
-            </div>
 
             <form method="post" enctype="multipart/form-data" class="space-y-4">
                 {% csrf_token %}
-                
-                <!-- Affichage des erreurs globales -->
+
                 {% if form.non_field_errors %}
                 <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
                     {{ form.non_field_errors }}
                 </div>
                 {% endif %}
-                
+
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">{{ form.amount.label }}</label>
                     {{ form.amount }}
@@ -66,9 +57,13 @@
                     {% endif %}
                 </div>
 
-                <!-- Zone Drag & Drop pour le reçu -->
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">{{ form.receipt.label }} (optionnel)</label>
+                    <div class="flex items-center justify-between">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">{{ form.receipt.label }} (optionnel)</label>
+                        {% if payment.receipt %}
+                        <a href="{{ payment.receipt.url }}" target="_blank" class="text-indigo-600 text-sm hover:underline">Voir le reçu actuel</a>
+                        {% endif %}
+                    </div>
                     <div id="dropZone" 
                          class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-indigo-400 hover:bg-indigo-50 transition"
                          onclick="document.getElementById('id_receipt').click()">
@@ -95,8 +90,8 @@
                 </div>
 
                 <div class="pt-4 flex gap-3">
-                    <button type="submit" class="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-medium transition shadow-sm">
-                        Valider le Paiement
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-medium transition shadow-sm">
+                        Enregistrer les modifications
                     </button>
                     <a href="{% url 'students:detail' student.id %}" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition">
                         Annuler
@@ -115,7 +110,6 @@
     const uploadIcon = document.getElementById('uploadIcon');
     const dropText = document.getElementById('dropText');
 
-    // Drag & Drop handlers
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
         dropZone.classList.add('border-indigo-500', 'bg-indigo-100');
@@ -129,14 +123,11 @@
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
         dropZone.classList.remove('border-indigo-500', 'bg-indigo-100');
-        
         const files = e.dataTransfer.files;
         if (files.length > 0) {
-            // Créer un objet DataTransfer pour assigner le fichier à l'input
             const dataTransfer = new DataTransfer();
             dataTransfer.items.add(files[0]);
             fileInput.files = dataTransfer.files;
-            
             handleFile(files[0]);
         }
     });
@@ -148,22 +139,17 @@
     });
 
     function handleFile(file) {
-        // Vérifier le type
         const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         if (!validTypes.includes(file.type)) {
             alert('❌ Type de fichier non supporté. Utilisez PDF, JPEG, PNG ou WEBP.');
             fileInput.value = '';
             return;
         }
-
-        // Vérifier la taille (10 MB max)
         if (file.size > 10 * 1024 * 1024) {
             alert('❌ Fichier trop volumineux (max 10 MB)');
             fileInput.value = '';
             return;
         }
-
-        // Afficher le nom du fichier
         fileName.textContent = file.name;
         filePreview.classList.remove('hidden');
         uploadIcon.classList.add('hidden');

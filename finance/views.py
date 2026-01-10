@@ -1,5 +1,8 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib import messages
+from .models import Payment
+from django.http import HttpResponse
 
 def apply_group_discount(cohort_id, discount_id):
     """Applique une réduction à TOUS les étudiants d'un groupe"""
@@ -35,14 +38,17 @@ def add_payment(request, enrollment_id):
     
     if request.method == 'POST':
         form = PaymentForm(request.POST, request.FILES)
+        
         if form.is_valid():
             payment = form.save(commit=False)
             payment.enrollment = enrollment
             payment.recorded_by = request.user # L'admin connecté
             payment.save()
             
-            # Une fois payé, on retourne sur la fiche de l'élève
+            messages.success(request, f"✅ Paiement de {payment.amount} DA enregistré avec succès!")
             return redirect('students:detail', pk=enrollment.student.id)
+        else:
+            messages.error(request, "Erreur lors de la validation du formulaire. Veuillez vérifier les champs.")
     else:
         # On pré-remplit avec le reste à payer (Balance Due)
         form = PaymentForm(initial={'amount': enrollment.balance_due})
@@ -53,6 +59,68 @@ def add_payment(request, enrollment_id):
         'student': enrollment.student
     }
     return render(request, 'finance/payment_form.html', context)
+
+
+def delete_payment(request, payment_id):
+    """Supprimer un paiement (POST only)"""
+    if request.method != 'POST':
+        return HttpResponse(status=405)
+    
+    payment = get_object_or_404(Payment, pk=payment_id)
+    student_id = payment.enrollment.student.id
+    
+    # Supprimer le fichier si il existe
+    if payment.receipt:
+        payment.receipt.delete()
+    
+    payment.delete()
+    messages.success(request, f"Paiement de {payment.amount} DA supprimé avec succès.")
+    
+    return redirect('students:detail', pk=student_id)
+
+
+def edit_payment(request, payment_id):
+    """Modifier un paiement existant (montant, méthode, référence, reçu)."""
+    payment = get_object_or_404(Payment, pk=payment_id)
+    enrollment = payment.enrollment
+
+    if request.method == 'POST':
+        form = PaymentForm(request.POST, request.FILES, instance=payment)
+        if form.is_valid():
+            # Si un nouveau reçu est uploadé, Django remplacera le fichier;
+            # pour éviter les fichiers orphelins, on supprime l'ancien si nécessaire.
+            if 'receipt' in request.FILES and payment.receipt:
+                try:
+                    old = payment.receipt
+                    # On ne supprime qu'après sauvegarde réussie; on retient la référence
+                except Exception:
+                    old = None
+
+            updated = form.save()
+
+            # Nettoyage éventuel de l'ancien reçu (si remplacé)
+            if 'receipt' in request.FILES:
+                try:
+                    if old and old.name != updated.receipt.name:
+                        old.delete(save=False)
+                except Exception:
+                    pass
+
+            messages.success(request, "Paiement mis à jour avec succès.")
+            return redirect('students:detail', pk=enrollment.student.id)
+        else:
+            messages.error(request, "Erreur lors de la validation du formulaire. Veuillez vérifier les champs.")
+    else:
+        form = PaymentForm(instance=payment)
+
+    context = {
+        'form': form,
+        'payment': payment,
+        'enrollment': enrollment,
+        'student': enrollment.student,
+        'is_edit': True,
+    }
+    return render(request, 'finance/payment_edit.html', context)
 
 
 # =====================================================

@@ -7,9 +7,12 @@ from finance.models import Installment, Payment
 
 class InstallmentInline(admin.TabularInline):
     model = Installment
-    extra = 0
-    readonly_fields = ('due_date', 'amount') # On évite de tricher sur les montants ici
-    can_delete = False
+    extra = 1
+    fields = ('due_date', 'amount', 'is_paid', 'payment')
+    # Permettre la création/modification d'échéances directement depuis l'inscription
+    readonly_fields = ()
+    can_delete = True
+    show_change_link = True
     classes = ['collapse'] # Replié par défaut pour gagner de la place
 
 class PaymentInline(admin.TabularInline):

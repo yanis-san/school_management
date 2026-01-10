@@ -35,6 +35,7 @@ INSTALLED_APPS = [
     'emails',
     'inventory',
     'prospects.apps.ProspectsConfig',
+    'tasks',
 ]
 
 MIDDLEWARE = [
