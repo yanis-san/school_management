@@ -75,6 +75,16 @@
                 document.activeElement.blur();
             }
 
+            // Alt+S pour plier/déplier la sidebar
+            if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                // Trouver l'élément Alpine et déclencher le toggle
+                const sidebarButton = document.querySelector('aside button[class*="absolute"]');
+                if (sidebarButton) {
+                    sidebarButton.click();
+                }
+            }
+
             // Raccourcis Alt+[numéro] pour navigation sidebar (chiffres du haut du clavier)
             if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
                 const shortcuts = {
@@ -118,7 +128,7 @@
             
             <!-- Toggle Button (desktop only) -->
             <button @click="sidebarCollapsed = !sidebarCollapsed; localStorage.setItem('sidebarCollapsed', sidebarCollapsed)"
-                    class="hidden lg:inline-flex absolute -right-3 top-8 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 shadow-lg z-50 sidebar-transition">
+                    class="hidden lg:inline-flex absolute left-2 top-4 bg-blue-600 hover:bg-blue-700 text-white rounded-full p-1.5 shadow-lg z-50 sidebar-transition">
                 <svg :class="sidebarCollapsed ? 'rotate-180' : ''" class="w-4 h-4 sidebar-transition" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
                 </svg>
@@ -344,8 +354,8 @@
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50">
-            <div class="lg:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-200 px-4 py-3 flex items-center gap-3">
+        <main class="flex-1 flex flex-col overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50/30 to-gray-50">
+            <div class="lg:hidden sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-200 px-4 py-3 flex items-center gap-3 flex-shrink-0">
                 <button @click="mobileMenuOpen = true" class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-slate-900 text-white shadow-lg shadow-slate-900/20">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
@@ -356,9 +366,11 @@
                     <p class="text-sm font-semibold text-gray-800">Institut Torii</p>
                 </div>
             </div>
-            <div class="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
-                {% block content %}
-                {% endblock %}
+            <div class="flex-1 overflow-x-hidden overflow-y-auto">
+                <div class="container mx-auto px-4 sm:px-6 py-6 sm:py-8">
+                    {% block content %}
+                    {% endblock %}
+                </div>
             </div>
         </main>
     </div>
