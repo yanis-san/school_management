@@ -1,6 +1,7 @@
 # students/views.py
 from django.shortcuts import render, get_object_or_404, redirect
 from django.http import HttpResponse, JsonResponse
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 from .models import Student, Enrollment, StudentAnnualFee
 from core.models import AcademicYear
@@ -46,10 +47,18 @@ def generate_unique_student_code(phone=None):
     else:
         year_label = academic_year.label.replace('-', '')
     
+    # Valider que year_label n'est pas vide et ne contient que des chiffres
+    if not year_label or not year_label.isdigit():
+        from datetime import datetime
+        year_label = f"{datetime.now().year}{datetime.now().year + 1}"
+    
     # Trouver le prochain numéro de séquence pour cette année
-    # On cherche les codes commençant par l'année actuelle
+    # On cherche les codes commençant par l'année actuelle ET pas vides
     last_student = Student.objects.filter(
-        student_code__startswith=year_label
+        student_code__startswith=year_label,
+        student_code__isnull=False
+    ).exclude(
+        student_code__exact=''
     ).order_by('-student_code').first()
     
     if last_student and last_student.student_code:
@@ -116,44 +125,22 @@ def create_enrollment(request):
                     student.id_card_back = id_card_back
                 student.save()
             else:
-                # Nouveau ou récupération par téléphone
-                student = Student.objects.filter(phone=phone).first()
-                if student:
-                    # Mettre à jour si trouvé par téléphone
-                    student.first_name = request.POST.get('first_name')
-                    student.last_name = request.POST.get('last_name')
-                    if sex:
-                        student.sex = sex
-                    student.email = request.POST.get('email')
-                    student.phone_2 = request.POST.get('phone_2', '')
-                    student.birth_date = birth_date
-                    student.motivation = request.POST.get('motivation', '')
-                    # Ne pas écraser le code s'il existe déjà
-                    if not student.student_code:
-                        student.student_code = generate_unique_student_code()
-                    if profile_picture:
-                        student.profile_picture = profile_picture
-                    if id_card_front:
-                        student.id_card_front = id_card_front
-                    if id_card_back:
-                        student.id_card_back = id_card_back
-                    student.save()
-                else:
-                    # Création d'un nouvel élève
-                    student = Student.objects.create(
-                        first_name=request.POST.get('first_name'),
-                        last_name=request.POST.get('last_name'),
-                        sex=sex,
-                        email=request.POST.get('email'),
-                        phone=phone,
-                        phone_2=request.POST.get('phone_2', ''),
-                        birth_date=birth_date,
-                        motivation=request.POST.get('motivation', ''),
-                        student_code=generate_unique_student_code(),
-                        profile_picture=profile_picture if profile_picture else None,
-                        id_card_front=id_card_front if id_card_front else None,
-                        id_card_back=id_card_back if id_card_back else None,
-                    )
+                # Créer un NOUVEL élève (pas de merge par téléphone)
+                # Les vrais doublons (même email + téléphone + prénom/nom) sont permis
+                student = Student.objects.create(
+                    first_name=request.POST.get('first_name'),
+                    last_name=request.POST.get('last_name'),
+                    sex=sex,
+                    email=request.POST.get('email'),
+                    phone=phone,
+                    phone_2=request.POST.get('phone_2', ''),
+                    birth_date=birth_date,
+                    motivation=request.POST.get('motivation', ''),
+                    student_code=generate_unique_student_code(),
+                    profile_picture=profile_picture if profile_picture else None,
+                    id_card_front=id_card_front if id_card_front else None,
+                    id_card_back=id_card_back if id_card_back else None,
+                )
 
             # 2. Vérifier si une cohort a été sélectionnée
             cohort_id = request.POST.get('cohort_id')
@@ -473,3 +460,62 @@ def toggle_annual_fee(request, pk):
         'is_paid': fee.is_paid,
         'message': f"Frais {current_year.label} marqués comme {'payés' if fee.is_paid else 'non payés'}"
     })
+
+
+def enrollment_edit_tariff(request, enrollment_id):
+    """
+    Affiche une modal pour modifier le tarif d'une inscription
+    """
+    enrollment = get_object_or_404(Enrollment, pk=enrollment_id)
+    
+    if request.method == 'GET':
+        # Récupérer tous les tarifs
+        all_tariffs = Tariff.objects.all().order_by('-amount')
+        
+        # Trouver le tarif standard du groupe
+        standard_tariff = all_tariffs.filter(amount=enrollment.cohort.standard_price).first()
+        
+        # Récupérer les autres tarifs (sans doublons de montant)
+        seen_amounts = {enrollment.cohort.standard_price} if standard_tariff else set()
+        unique_other_tariffs = []
+        
+        for tariff in all_tariffs:
+            if tariff.amount not in seen_amounts:
+                unique_other_tariffs.append(tariff)
+                seen_amounts.add(tariff.amount)
+        
+        # Construire la liste finale : standard d'abord, puis les autres
+        tariffs_to_display = []
+        if standard_tariff:
+            tariffs_to_display.append(standard_tariff)
+        tariffs_to_display.extend(unique_other_tariffs)
+        
+        context = {
+            'enrollment': enrollment,
+            'tariffs': tariffs_to_display,
+            'current_tariff': enrollment.tariff,
+            'standard_tariff': standard_tariff,
+        }
+        return render(request, 'students/enrollment_edit_tariff_modal.html', context)
+    
+    elif request.method == 'POST':
+        # Modifier le tarif
+        new_tariff_id = request.POST.get('tariff_id')
+        
+        if not new_tariff_id:
+            return JsonResponse({'success': False, 'error': 'Tarif requis'}, status=400)
+        
+        try:
+            new_tariff = Tariff.objects.get(id=new_tariff_id)
+        except Tariff.DoesNotExist:
+            return JsonResponse({'success': False, 'error': 'Tarif inexistant'}, status=404)
+        
+        old_amount = enrollment.tariff.amount
+        enrollment.tariff = new_tariff
+        enrollment.save()
+        
+        # Retourner une réponse avec HX-Redirect pour HTMX
+        student_url = reverse('students:detail', kwargs={'pk': enrollment.student.id})
+        response = JsonResponse({'success': True})
+        response['HX-Redirect'] = student_url
+        return response

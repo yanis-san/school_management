@@ -16,8 +16,9 @@ from django.shortcuts import get_object_or_404, render
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4, landscape
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import cm
+from reportlab.lib.enums import TA_CENTER
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle, Image
 
 from academics.models import Cohort, CourseSession
@@ -51,9 +52,9 @@ def _header_footer_maker(title: str):
         y_header = height - 1.5 * cm
         canvas_obj.line(1.5 * cm, y_header + 0.4 * cm, width - 1.5 * cm, y_header + 0.4 * cm)
         if logo:
-            canvas_obj.drawImage(str(logo), 1.5 * cm, height - 2.5 * cm, width=3.5 * cm, preserveAspectRatio=True, mask='auto')
+            canvas_obj.drawImage(str(logo), 1.5 * cm, height - 3.2 * cm, width=3.5 * cm, preserveAspectRatio=True, mask='auto')
         canvas_obj.setFont('Helvetica-Bold', 12)
-        canvas_obj.drawString(5.2 * cm, height - 2.0 * cm, f"{title}")
+        canvas_obj.drawString(5.2 * cm, height - 2.7 * cm, f"{title}")
 
         # Footer
         canvas_obj.line(1.5 * cm, 1.6 * cm, width - 1.5 * cm, 1.6 * cm)
@@ -64,7 +65,7 @@ def _header_footer_maker(title: str):
     return _draw
 
 
-def _attendance_header_footer(cohort_name: str, date_str: str, time_str: str, teacher_name: str):
+def _attendance_header_footer(cohort_name: str, date_str: str, day_name: str, time_str: str, teacher_name: str):
     """En-tête spécial pour les feuilles de présence avec toutes les infos du groupe."""
     generated = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
     logo = _logo_path()
@@ -74,18 +75,33 @@ def _attendance_header_footer(cohort_name: str, date_str: str, time_str: str, te
         canvas_obj.setStrokeColor(colors.lightgrey)
         canvas_obj.setLineWidth(0.5)
 
-        # Logo tout à gauche, plus bas et plus gros
+        # === LOGO EN HAUT À GAUCHE ===
         if logo:
-            canvas_obj.drawImage(str(logo), 1.5 * cm, height - 3.2 * cm, width=2.5 * cm, preserveAspectRatio=True, mask='auto')
+            canvas_obj.drawImage(str(logo), 1.5 * cm, height - 2.2 * cm, width=2.2 * cm, height=2.2 * cm, preserveAspectRatio=True, mask='auto')
         
-        # Infos du groupe à gauche
-        canvas_obj.setFont('Helvetica-Bold', 11)
-        canvas_obj.drawString(1.5 * cm, height - 1.8 * cm, f"Groupe : {cohort_name}")
-        canvas_obj.setFont('Helvetica', 9)
-        canvas_obj.drawString(1.5 * cm, height - 2.3 * cm, f"Date : {date_str}  |  Horaire : {time_str}")
-        canvas_obj.drawString(1.5 * cm, height - 2.7 * cm, f"Professeur : {teacher_name}")
+        # === INFOS GROUPE - À GAUCHE, ALIGNÉ AVEC LE CONTENU PRINCIPAL ===
+        x_info = 1.5 * cm  # Même position que le contenu principal
+        y_start = height - 2.5 * cm
+        
+        # Groupe
+        canvas_obj.setFont('Helvetica-Bold', 10)
+        canvas_obj.drawString(x_info, y_start, f"Groupe : {cohort_name}")
+        
+        # Jour
+        canvas_obj.setFont('Helvetica', 8)
+        canvas_obj.drawString(x_info, y_start - 0.4 * cm, f"Jour : {day_name}")
+        
+        # Date et Horaire
+        canvas_obj.drawString(x_info, y_start - 0.8 * cm, f"Date : {date_str}  |  Horaire : {time_str}")
+        
+        # Professeur
+        canvas_obj.drawString(x_info, y_start - 1.2 * cm, f"Professeur : {teacher_name}")
 
-        # Footer
+        # === SIGNATURE À DROITE ===
+        canvas_obj.setFont('Helvetica', 8)
+        canvas_obj.drawRightString(width - 1.5 * cm, y_start, "Signature : _________________")
+
+        # === FOOTER ===
         canvas_obj.line(1.5 * cm, 1.6 * cm, width - 1.5 * cm, 1.6 * cm)
         canvas_obj.setFont('Helvetica', 8)
         canvas_obj.drawString(1.5 * cm, 1.2 * cm, "Institut Torii")
@@ -503,19 +519,28 @@ def download_session_attendance(request, session_id):
     return response
 
 
-def _generate_pdf_bytes(title: str, build_story, pagesize=None, header_footer=None):
+def _generate_pdf_bytes(title: str, build_story, pagesize=None, header_footer=None, topMargin=None, bottomMargin=None):
     """Helper : génère les bytes PDF sans réponse HTTP.
     pagesize: override page size (default landscape A4)
     header_footer: custom header/footer function (default uses title)
+    topMargin: custom top margin (default 3.5cm with header_footer, 3cm without)
+    bottomMargin: custom bottom margin (default 2.2cm)
     """
     buffer = BytesIO()
+    
+    if topMargin is None:
+        topMargin = 3.5 * cm if header_footer else 3 * cm
+    
+    if bottomMargin is None:
+        bottomMargin = 2.2 * cm
+    
     doc = SimpleDocTemplate(
         buffer,
         pagesize=(pagesize or landscape(A4)),
         leftMargin=1.5 * cm,
         rightMargin=1.5 * cm,
-        topMargin=3.5 * cm if header_footer else 3 * cm,
-        bottomMargin=2.2 * cm,
+        topMargin=topMargin,
+        bottomMargin=bottomMargin,
     )
     styles = getSampleStyleSheet()
     story = []
@@ -608,9 +633,14 @@ def download_cohort_zip(request, cohort_id):
             h1 = styles['Heading1']
             normal = styles['BodyText']
             story.append(Paragraph(f"Présence – {cohort.name}", h1))
-            story.append(Spacer(1, 0.2 * cm))
+            story.append(Spacer(1, 0.1 * cm))
             story.append(Paragraph(f"Professeur : {cohort.teacher.get_full_name()}", normal))
-            story.append(Spacer(1, 0.3 * cm))
+            story.append(Spacer(1, 0.1 * cm))
+            
+            # Ajouter la légende avant la table pour qu'elle soit sur la même page
+            legend_text = "Légende : ✓ Présent | ✗ Absent | ⌚ Retard | E Excusé"
+            story.append(Paragraph(legend_text, normal))
+            story.append(Spacer(1, 0.05 * cm))
 
             STATUS_SYMBOLS = {'PRESENT': '✓', 'ABSENT': '✗', 'LATE': '⌚', 'EXCUSED': 'E'}
             data = [["N°", "Étudiant"] + [s.date.strftime('%d/%m') for s in sessions_att]]
@@ -621,21 +651,28 @@ def download_cohort_zip(request, cohort_id):
                     row.append(STATUS_SYMBOLS.get(status, '?'))
                 data.append(row)
 
-            table = Table(data, repeatRows=1, hAlign='LEFT')
+            # Calculer les largeurs de colonne pour compacter
+            num_sessions = len(sessions_att)
+            col_widths = [0.8*cm, 4.5*cm] + [0.6*cm] * num_sessions  # N°, Étudiant, et dates
+            
+            table = Table(data, colWidths=col_widths, repeatRows=1, hAlign='LEFT', canSplit=False)
             table.setStyle(TableStyle([
                 ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
                 ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0,0), (-1,0), 8),
-                ('FONTSIZE', (0,1), (-1,-1), 8),
+                ('FONTSIZE', (0,0), (-1,0), 6),
+                ('FONTSIZE', (0,1), (-1,-1), 5),
                 ('ALIGN', (0,0), (0,-1), 'CENTER'),
                 ('ALIGN', (2,1), (-1,-1), 'CENTER'),
-                ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                ('GRID', (0,0), (-1,-1), 0.1, colors.grey),
+                ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.lightgrey]),
+                ('LEFTPADDING', (0,0), (-1,-1), 1),
+                ('RIGHTPADDING', (0,0), (-1,-1), 1),
+                ('TOPPADDING', (0,0), (-1,-1), 1),
+                ('BOTTOMPADDING', (0,0), (-1,-1), 1),
             ]))
             story.append(table)
-            story.append(Spacer(1, 0.2 * cm))
-            story.append(Paragraph("Légende : ✓ Présent | ✗ Absent | ⌚ Retard | E Excusé", normal))
 
-        att_pdf = _generate_pdf_bytes(f"Présence {cohort.name}", build_att_story, pagesize=A4)
+        att_pdf = _generate_pdf_bytes(f"Présence {cohort.name}", build_att_story, pagesize=landscape(A4), topMargin=1.8*cm, bottomMargin=1.5*cm)
         zf.writestr(f"{cohort.name.replace(' ', '_')}/02_Presences.pdf", att_pdf)
 
     zip_buffer.seek(0)
@@ -1197,6 +1234,73 @@ def download_cohort_complete_zip(request, cohort_id):
     
     with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
         
+        # 0. Couverture du dossier du groupe
+        def build_cover(story, styles):
+            logo = _logo_path()
+            normal = styles['BodyText']
+            
+            # Espace en haut avant le logo
+            story.append(Spacer(1, 0.8*cm))
+            
+            # Logo centré - plus grand
+            if logo:
+                img = Image(str(logo), width=5.5*cm, height=5.5*cm, kind='proportional')
+                story.append(Spacer(1, 0.2*cm))
+                from reportlab.platypus import PageTemplate, Frame
+                # Créer un conteneur centré pour l'image
+                img_table = Table([[img]], colWidths=[15*cm])
+                img_table.setStyle(TableStyle([
+                    ('ALIGN', (0,0), (0,0), 'CENTER'),
+                    ('VALIGN', (0,0), (0,0), 'MIDDLE'),
+                    ('LEFTPADDING', (0,0), (0,0), 0),
+                    ('RIGHTPADDING', (0,0), (0,0), 0),
+                    ('TOPPADDING', (0,0), (0,0), 0),
+                    ('BOTTOMPADDING', (0,0), (0,0), 0),
+                ]))
+                story.append(img_table)
+                story.append(Spacer(1, 0.8*cm))
+            
+            # Titre principal - Nom du groupe
+            story.append(Spacer(1, 0.5*cm))
+            title = Paragraph(f"<b>{cohort.name}</b>", ParagraphStyle('Title', fontSize=24, textColor=colors.HexColor('#2C3E50'), alignment=TA_CENTER, spaceAfter=0.8*cm, leading=32))
+            story.append(title)
+            story.append(Spacer(1, 1.2*cm))
+            
+            # Infos principales en format lisible
+            info_style = ParagraphStyle('InfoText', fontSize=16, leading=26, leftIndent=1*cm, spaceAfter=0.6*cm)
+            
+            story.append(Paragraph(f"<b>📚 Matière :</b> {cohort.subject.name}", info_style))
+            story.append(Paragraph(f"<b>📊 Niveau :</b> {cohort.level.name}", info_style))
+            
+            # Dates
+            start_date_str = cohort.start_date.strftime('%d/%m/%Y')
+            end_date_str = cohort.end_date.strftime('%d/%m/%Y')
+            story.append(Paragraph(f"<b>📅 Période :</b> {start_date_str} → {end_date_str} <i>(sujette à modification)</i>", info_style))
+            
+            # Horaires et jour de la semaine - si première séance existe
+            first_session = cohort.sessions.order_by('date', 'start_time').first()
+            if first_session:
+                # Obtenir le jour de la semaine en français
+                days_fr = {0: 'Lundi', 1: 'Mardi', 2: 'Mercredi', 3: 'Jeudi', 4: 'Vendredi', 5: 'Samedi', 6: 'Dimanche'}
+                day_name = days_fr.get(first_session.date.weekday(), '')
+                story.append(Paragraph(f"<b>📆 Jour :</b> {day_name}", info_style))
+                story.append(Paragraph(f"<b>⏰ Horaire :</b> {first_session.start_time.strftime('%H:%M')} - {first_session.end_time.strftime('%H:%M')}", info_style))
+            
+            story.append(Spacer(1, 1.8*cm))
+            
+            # Professeur principal
+            prof_style = ParagraphStyle('ProfStyle', fontSize=16, leading=24, textColor=colors.HexColor('#E74C3C'), alignment=TA_CENTER, spaceAfter=0.4*cm)
+            story.append(Paragraph("<b>Professeur Principal</b>", prof_style))
+            prof_name_style = ParagraphStyle('ProfName', fontSize=20, leading=28, textColor=colors.HexColor('#2C3E50'), alignment=TA_CENTER, spaceAfter=0.4*cm)
+            story.append(Paragraph(f"<b>{cohort.teacher.get_full_name()}</b>", prof_name_style))
+        
+        # En-tête vide pour la couverture (pas de titre par défaut)
+        def _cover_header_footer(canvas_obj, doc):
+            pass
+        
+        cover_pdf = _generate_pdf_bytes("", build_cover, pagesize=A4, header_footer=_cover_header_footer)
+        zf.writestr("00_COUVERTURE.pdf", cover_pdf)
+        
         # 1. Fiche synthèse du cohort
         def build_synthese(story, styles):
             h1, h2, normal = styles['Heading1'], styles['Heading2'], styles['BodyText']
@@ -1376,32 +1480,41 @@ def download_cohort_complete_zip(request, cohort_id):
             def build_attendance(story, styles):
                 h1 = styles['Heading1']
                 normal = styles['BodyText']
+                
+                # Ajouter de l'espace pour ne pas chevaucher l'en-tête
+                story.append(Spacer(1, 1 * cm))
+                
                 story.append(Paragraph(f"FEUILLE DE PRÉSENCE - Séance {idx}/{sessions.count()}", h1))
-                story.append(Spacer(1, 0.5 * cm))
+                story.append(Spacer(1, 0.3 * cm))
                 
                 data = [["N°", "Étudiant", "Signature"]]
                 for i, enr in enumerate(enrollments, 1):
                     data.append([i, f"{enr.student.last_name} {enr.student.first_name}", ""])
                 
-                table = Table(data, repeatRows=1, colWidths=[1.5*cm, 8*cm, 5*cm], rowHeights=[0.6*cm] + [1.4*cm]*len(enrollments))
+                table = Table(data, repeatRows=1, colWidths=[1.5*cm, 8*cm, 5*cm], rowHeights=[0.6*cm] + [1.0*cm]*len(enrollments))
                 table.setStyle(TableStyle([
                     ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
                     ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0,0), (-1,-1), 9),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
                     ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
                     ('ALIGN', (0,0), (0,-1), 'CENTER'),
                 ]))
                 story.append(table)
                 
-                # Section notes
-                story.append(Spacer(1, 0.8 * cm))
+                # Section notes - réduite et sans espaces excessifs
+                story.append(Spacer(1, 0.3 * cm))
                 story.append(Paragraph("<b>Notes sur la séance :</b>", normal))
-                story.append(Spacer(1, 4 * cm))
+                story.append(Spacer(1, 3.5 * cm))
             
             # Utiliser l'en-tête personnalisé avec toutes les infos
+            # Obtenir le jour de la semaine en français
+            days_fr = {0: 'Lundi', 1: 'Mardi', 2: 'Mercredi', 3: 'Jeudi', 4: 'Vendredi', 5: 'Samedi', 6: 'Dimanche'}
+            day_name = days_fr.get(session.date.weekday(), 'Inconnu')
+            
             custom_header = _attendance_header_footer(
                 cohort_name=cohort.name,
                 date_str=session.date.strftime('%d/%m/%Y'),
+                day_name=day_name,
                 time_str=f"{session.display_start_time.strftime('%H:%M')} - {session.display_end_time.strftime('%H:%M')}",
                 teacher_name=session.teacher.get_full_name()
             )
@@ -1469,6 +1582,281 @@ def download_cohort_complete_zip(request, cohort_id):
     response = HttpResponse(zip_buffer.read(), content_type='application/zip')
     from urllib.parse import quote
     filename = f"Dossier_Complet_{cohort.name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.zip"
+    encoded_filename = quote(filename)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}'
+    return response
+
+
+@login_required
+def download_cohort_payment_report(request, cohort_id):
+    """
+    ZIP avec 2 PDFs:
+    1. Bilan des paiements étudiants (montants payés, reste, détails)
+    2. Bilan des paiements professeur (détails complets)
+    """
+    cohort = get_object_or_404(
+        Cohort.objects.select_related('teacher', 'subject', 'level', 'academic_year'),
+        id=cohort_id
+    )
+    
+    enrollments = cohort.enrollments.select_related('student', 'tariff').prefetch_related('payments').order_by('student__last_name', 'student__first_name')
+    teacher_payments = TeacherCohortPayment.objects.filter(cohort=cohort).select_related('teacher').order_by('-payment_date')
+    
+    zip_buffer = BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+        
+        # 1. PDF PAIEMENTS ÉTUDIANTS
+        def build_student_payments(story, styles):
+            h1, h2, normal = styles['Heading1'], styles['Heading2'], styles['BodyText']
+            h1.fontSize = 14
+            h2.fontSize = 12
+            normal.fontSize = 10
+            
+            story.append(Paragraph(f"BILAN PAIEMENTS ÉTUDIANTS - {cohort.name}", h1))
+            story.append(Spacer(1, 0.4 * cm))
+            
+            # Tableau détaillé
+            pay_data = [["N°", "Étudiant", "Montant dû", "Payé", "Reste", "Dernier paiement", "F.I"]]
+            
+            for idx, enr in enumerate(enrollments, 1):
+                total_tariff = enr.tariff.amount if enr.tariff else 0
+                paid = enr.payments.aggregate(total=Coalesce(Sum('amount'), 0))['total']
+                remaining = total_tariff - paid
+                
+                last_payment = enr.payments.order_by('-date').first()
+                last_date_str = last_payment.date.strftime('%d/%m/%Y') if last_payment else "Aucun"
+                
+                # Vérifier si les frais d'inscription sont payés
+                fee_paid = enr.student.has_paid_registration_fee(cohort.academic_year)
+                fee_status = "✓" if fee_paid else "✗"
+                
+                pay_data.append([
+                    str(idx),
+                    f"{enr.student.last_name} {enr.student.first_name}",
+                    f"{total_tariff:,.0f} DA".replace(',', ' '),
+                    f"{paid:,.0f} DA".replace(',', ' '),
+                    f"{remaining:,.0f} DA".replace(',', ' '),
+                    last_date_str,
+                    fee_status
+                ])
+            
+            table = Table(pay_data, repeatRows=1, colWidths=[1*cm, 5.5*cm, 2.2*cm, 2.2*cm, 2.2*cm, 2.5*cm, 0.8*cm])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0,0), (-1,-1), 8),
+                ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
+                ('ALIGN', (-1,0), (-1,-1), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ]))
+            story.append(table)
+            
+            # Totaux
+            total_due = sum(enr.tariff.amount if enr.tariff else 0 for enr in enrollments)
+            total_paid = Payment.objects.filter(enrollment__cohort=cohort).aggregate(total=Coalesce(Sum('amount'), 0))['total']
+            total_remaining = total_due - total_paid
+            
+            story.append(Spacer(1, 0.4 * cm))
+            story.append(Paragraph(f"<b>Total à percevoir :</b> {total_due:,.0f} DA".replace(',', ' '), normal))
+            story.append(Paragraph(f"<b>Total payé :</b> {total_paid:,.0f} DA".replace(',', ' '), normal))
+            story.append(Paragraph(f"<b>Total restant :</b> {total_remaining:,.0f} DA".replace(',', ' '), normal))
+        
+        student_pay_pdf = _generate_pdf_bytes(f"Paiements Étudiants {cohort.name}", build_student_payments, pagesize=A4)
+        zf.writestr("01_Paiements_Etudiants.pdf", student_pay_pdf)
+        
+        # 2. PDF PAIEMENTS PROFESSEUR
+        def build_teacher_payments(story, styles):
+            h1, h2, normal = styles['Heading1'], styles['Heading2'], styles['BodyText']
+            h1.fontSize = 14
+            h2.fontSize = 12
+            normal.fontSize = 10
+            
+            story.append(Paragraph(f"BILAN PAIEMENTS PROFESSEUR - {cohort.name}", h1))
+            story.append(Spacer(1, 0.3 * cm))
+            
+            # Infos du prof
+            story.append(Paragraph(f"<b>Professeur :</b> {cohort.teacher.get_full_name()}", normal))
+            story.append(Paragraph(f"<b>Tarif horaire :</b> {cohort.teacher_hourly_rate:,.0f} DA/h".replace(',', ' '), normal))
+            story.append(Spacer(1, 0.3 * cm))
+            
+            if teacher_payments.exists():
+                story.append(Paragraph("Historique des paiements", h2))
+                pay_data = [["Date", "Montant", "Méthode", "Notes"]]
+                
+                for tp in teacher_payments:
+                    pay_data.append([
+                        tp.payment_date.strftime('%d/%m/%Y'),
+                        f"{tp.amount_paid:,} DA".replace(',', ' '),
+                        tp.get_payment_method_display(),
+                        ""
+                    ])
+                
+                table = Table(pay_data, repeatRows=1, colWidths=[2.5*cm, 3*cm, 3*cm, 5.5*cm])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                    ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+                ]))
+                story.append(table)
+                
+                # Total payé
+                total_teacher_paid = teacher_payments.aggregate(total=Coalesce(Sum('amount_paid'), 0))['total']
+                story.append(Spacer(1, 0.3 * cm))
+                story.append(Paragraph(f"<b>Total payé au professeur :</b> {total_teacher_paid:,.0f} DA".replace(',', ' '), normal))
+            else:
+                story.append(Paragraph("<i>Aucun paiement enregistré</i>", normal))
+        
+        teacher_pay_pdf = _generate_pdf_bytes(f"Paiements Professeur {cohort.name}", build_teacher_payments, pagesize=A4)
+        zf.writestr("02_Paiements_Professeur.pdf", teacher_pay_pdf)
+    
+    zip_buffer.seek(0)
+    response = HttpResponse(zip_buffer.read(), content_type='application/zip')
+    from urllib.parse import quote
+    filename = f"Bilan_Paiements_{cohort.name.replace(' ', '_')}_{datetime.now().strftime('%Y%m%d')}.zip"
+    encoded_filename = quote(filename)
+    response['Content-Disposition'] = f'attachment; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}'
+    return response
+
+
+@login_required
+def download_all_cohorts_payment_report(request):
+    """
+    ZIP global avec un dossier par groupe
+    Chaque dossier contient:
+    - 01_Paiements_Etudiants.pdf
+    - 02_Paiements_Professeur.pdf
+    """
+    all_cohorts = Cohort.objects.select_related('teacher', 'subject', 'level', 'academic_year').all()
+    
+    zip_buffer = BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as main_zf:
+        for cohort in all_cohorts:
+            enrollments = cohort.enrollments.select_related('student', 'tariff').prefetch_related('payments').order_by('student__last_name', 'student__first_name')
+            teacher_payments = TeacherCohortPayment.objects.filter(cohort=cohort).select_related('teacher').order_by('-payment_date')
+            
+            # Dossier pour ce groupe
+            folder_name = f"{cohort.name.replace(' ', '_').replace('/', '_')}"
+            
+            # === PDF 1: PAIEMENTS ÉTUDIANTS ===
+            def build_student_payments(story, styles):
+                h1, h2, normal = styles['Heading1'], styles['Heading2'], styles['BodyText']
+                h1.fontSize = 14
+                h2.fontSize = 12
+                normal.fontSize = 10
+                
+                story.append(Paragraph(f"BILAN PAIEMENTS ÉTUDIANTS - {cohort.name}", h1))
+                story.append(Spacer(1, 0.4 * cm))
+                
+                # Tableau détaillé
+                pay_data = [["N°", "Étudiant", "Montant dû", "Payé", "Reste", "Dernier paiement", "F.I"]]
+                
+                for idx, enr in enumerate(enrollments, 1):
+                    total_tariff = enr.tariff.amount if enr.tariff else 0
+                    paid = enr.payments.aggregate(total=Coalesce(Sum('amount'), 0))['total']
+                    remaining = total_tariff - paid
+                    
+                    last_payment = enr.payments.order_by('-date').first()
+                    last_date_str = last_payment.date.strftime('%d/%m/%Y') if last_payment else "Aucun"
+                    
+                    # Vérifier si les frais d'inscription sont payés
+                    fee_paid = enr.student.has_paid_registration_fee(cohort.academic_year)
+                    fee_status = "✓" if fee_paid else "✗"
+                    
+                    pay_data.append([
+                        str(idx),
+                        f"{enr.student.last_name} {enr.student.first_name}",
+                        f"{total_tariff:,.0f} DA".replace(',', ' '),
+                        f"{paid:,.0f} DA".replace(',', ' '),
+                        f"{remaining:,.0f} DA".replace(',', ' '),
+                        last_date_str,
+                        fee_status
+                    ])
+                
+                table = Table(pay_data, repeatRows=1, colWidths=[1*cm, 5.5*cm, 2.2*cm, 2.2*cm, 2.2*cm, 2.5*cm, 0.8*cm])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                    ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                    ('ALIGN', (2,0), (-1,-1), 'RIGHT'),
+                    ('ALIGN', (-1,0), (-1,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ]))
+                story.append(table)
+                
+                # Totaux
+                total_due = sum(enr.tariff.amount if enr.tariff else 0 for enr in enrollments)
+                total_paid = Payment.objects.filter(enrollment__cohort=cohort).aggregate(total=Coalesce(Sum('amount'), 0))['total']
+                total_remaining = total_due - total_paid
+                
+                story.append(Spacer(1, 0.4 * cm))
+                story.append(Paragraph(f"<b>Total à percevoir :</b> {total_due:,.0f} DA".replace(',', ' '), normal))
+                story.append(Paragraph(f"<b>Total payé :</b> {total_paid:,.0f} DA".replace(',', ' '), normal))
+                story.append(Paragraph(f"<b>Total restant :</b> {total_remaining:,.0f} DA".replace(',', ' '), normal))
+            
+            student_pay_pdf = _generate_pdf_bytes(f"Paiements Étudiants {cohort.name}", build_student_payments, pagesize=A4)
+            main_zf.writestr(f"{folder_name}/01_Paiements_Etudiants.pdf", student_pay_pdf)
+            
+            # === PDF 2: PAIEMENTS PROFESSEUR ===
+            def build_teacher_payments(story, styles):
+                h1, h2, normal = styles['Heading1'], styles['Heading2'], styles['BodyText']
+                h1.fontSize = 14
+                h2.fontSize = 12
+                normal.fontSize = 10
+                
+                story.append(Paragraph(f"BILAN PAIEMENTS PROFESSEUR - {cohort.name}", h1))
+                story.append(Spacer(1, 0.3 * cm))
+                
+                # Infos du prof
+                story.append(Paragraph(f"<b>Professeur :</b> {cohort.teacher.get_full_name()}", normal))
+                story.append(Paragraph(f"<b>Tarif horaire :</b> {cohort.teacher_hourly_rate:,.0f} DA/h".replace(',', ' '), normal))
+                story.append(Spacer(1, 0.3 * cm))
+                
+                if teacher_payments.exists():
+                    story.append(Paragraph("Historique des paiements", h2))
+                    pay_data = [["Date", "Montant", "Méthode", "Notes"]]
+                    
+                    for tp in teacher_payments:
+                        pay_data.append([
+                            tp.payment_date.strftime('%d/%m/%Y'),
+                            f"{tp.amount_paid:,} DA".replace(',', ' '),
+                            tp.get_payment_method_display(),
+                            ""
+                        ])
+                    
+                    table = Table(pay_data, repeatRows=1, colWidths=[2.5*cm, 3*cm, 3*cm, 5.5*cm])
+                    table.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0,0), (-1,-1), 8),
+                        ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                        ('ALIGN', (1,0), (1,-1), 'RIGHT'),
+                    ]))
+                    story.append(table)
+                    
+                    # Total payé
+                    total_teacher_paid = teacher_payments.aggregate(
+                        total=Coalesce(Sum('amount_paid'), Value(Decimal('0.00')), output_field=DecimalField(max_digits=10, decimal_places=2))
+                    )['total']
+                    story.append(Spacer(1, 0.3 * cm))
+                    story.append(Paragraph(f"<b>Total payé au professeur :</b> {total_teacher_paid:,.0f} DA".replace(',', ' '), normal))
+                else:
+                    story.append(Paragraph("<i>Aucun paiement enregistré</i>", normal))
+            
+            teacher_pay_pdf = _generate_pdf_bytes(f"Paiements Professeur {cohort.name}", build_teacher_payments, pagesize=A4)
+            main_zf.writestr(f"{folder_name}/02_Paiements_Professeur.pdf", teacher_pay_pdf)
+    
+    zip_buffer.seek(0)
+    response = HttpResponse(zip_buffer.read(), content_type='application/zip')
+    from urllib.parse import quote
+    filename = f"Bilans_Paiements_Tous_Groupes_{datetime.now().strftime('%Y%m%d')}.zip"
     encoded_filename = quote(filename)
     response['Content-Disposition'] = f'attachment; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}'
     return response

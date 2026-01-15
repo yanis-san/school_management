@@ -227,7 +227,7 @@ def session_detail(request, session_id):
 
     # Calcul de la rémunération du prof (utilise override si présent)
     duration_hours = float(session.duration_hours)
-    teacher_pay = float(duration_hours) * float(session.cohort.teacher_hourly_rate)
+    teacher_pay = float(session.pay_amount)
 
     # Mode édition si demandé explicitement en GET (?edit=1)
     is_editing = request.GET.get('edit') == '1'
@@ -251,6 +251,24 @@ def session_detail(request, session_id):
                     messages.error(request, "Ce professeur n'est pas autorisé pour ce groupe.")
             except (User.DoesNotExist, ValueError):
                 messages.error(request, "Professeur invalide.")
+        
+        # 0.5 Gérer la modification du taux horaire override
+        new_hourly_rate = request.POST.get('teacher_hourly_rate_override', '').strip()
+        if new_hourly_rate:
+            try:
+                new_hourly_rate = int(new_hourly_rate)
+                if new_hourly_rate > 0:
+                    session.teacher_hourly_rate_override = new_hourly_rate
+                    messages.info(request, f"Taux horaire de cette séance modifié à {new_hourly_rate} DA/h")
+                else:
+                    messages.error(request, "Le taux horaire doit être un nombre positif.")
+            except ValueError:
+                messages.error(request, "Taux horaire invalide.")
+        elif new_hourly_rate == '':
+            # Si vide, supprimer la surcharge
+            if session.teacher_hourly_rate_override is not None:
+                session.teacher_hourly_rate_override = None
+                messages.info(request, f"Taux horaire remis au taux standard du cohort ({session.cohort.teacher_hourly_rate} DA/h)")
         
         # Traitement du formulaire (reste inchangé)
         try:
@@ -321,6 +339,9 @@ def session_detail(request, session_id):
         'duration_hours': round(duration_hours, 2),
         'is_editing': is_editing,
         'available_teachers': [session.cohort.teacher] + list(session.cohort.substitute_teachers.all()),
+        'hourly_rate_override': session.teacher_hourly_rate_override,
+        'standard_hourly_rate': session.cohort.teacher_hourly_rate,
+        'current_hourly_rate': session.pay_hourly_rate,
     }
     return render(request, 'academics/session_detail.html', context)
 

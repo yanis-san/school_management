@@ -85,6 +85,12 @@
                 }
             }
 
+            // Ctrl+Alt+S pour aller à la page Sauvegardes
+            if (e.ctrlKey && e.altKey && e.key.toLowerCase() === 's') {
+                e.preventDefault();
+                window.location.href = '{% url "backups_and_recovery" %}';
+            }
+
             // Raccourcis Alt+[numéro] pour navigation sidebar (chiffres du haut du clavier)
             if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
                 const shortcuts = {
@@ -309,6 +315,14 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
                                 </svg>
                                 <span x-show="!sidebarCollapsed" class="font-medium">Rapports</span>
+                            </a>
+                            
+                            <a href="{% url 'backups_and_recovery' %}" class="group flex items-center gap-3 px-4 py-2.5 rounded-xl {% if request.resolver_match.view_name == 'backups_and_recovery' %}bg-gradient-to-r from-blue-600 to-blue-500 shadow-lg shadow-blue-500/30{% else %}text-slate-300 hover:bg-slate-800/70{% endif %} sidebar-transition">
+                                <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-6 3h12a2 2 0 002-2v-6a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                                </svg>
+                                <span x-show="!sidebarCollapsed" class="font-medium">Sauvegardes</span>
+                                <span x-show="!sidebarCollapsed" class="ml-auto text-[10px] bg-slate-700/50 px-2 py-0.5 rounded-md font-mono opacity-0 group-hover:opacity-100 sidebar-transition">Ctrl+Alt+S</span>
                             </a>
                             
                             {% if request.user.is_superuser %}

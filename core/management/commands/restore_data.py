@@ -190,7 +190,46 @@ class Command(BaseCommand):
                         if password:
                             env["PGPASSWORD"] = password
 
-                        # Restore using psql < dump.sql
+                        # First, dynamically discover and TRUNCATE existing tables with CASCADE
+                        # This is necessary because COPY statements in the dump cannot insert records
+                        # if table IDs already exist with the same values
+                        discover_tables_sql = """
+SELECT string_agg(schemaname || '.' || tablename, ', ')
+FROM pg_tables
+WHERE schemaname = 'public'
+AND tablename NOT IN ('pg_stat_statements', 'pg_stat_statements_info', 'pg_stat_user_tables', 'pg_stat_user_indexes');
+"""
+                        truncate_discover_cmd = [
+                            psql_bin,
+                            "-h", str(host),
+                            "-p", str(port),
+                            "-U", str(user),
+                            "-d", str(name),
+                            "-t", "-c", discover_tables_sql,
+                        ]
+                        try:
+                            result = subprocess.run(truncate_discover_cmd, env=env, capture_output=True, text=True, check=True)
+                            tables_list = result.stdout.strip()
+                            if tables_list:
+                                truncate_cmd = [
+                                    psql_bin,
+                                    "-h", str(host),
+                                    "-p", str(port),
+                                    "-U", str(user),
+                                    "-d", str(name),
+                                    "-c", f"TRUNCATE TABLE {tables_list} CASCADE",
+                                ]
+                                subprocess.run(truncate_cmd, env=env, check=True, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                                self.stdout.write(self.style.NOTICE("✓ Cleared existing data (TRUNCATE CASCADE)"))
+                            else:
+                                self.stdout.write(self.style.NOTICE("✓ No tables to truncate (fresh restore)"))
+                        except subprocess.CalledProcessError as e:
+                            # Truncate might fail if database is empty, that's OK
+                            self.stdout.write(self.style.WARNING(f"⚠ Truncate notice: Database appears empty (OK for fresh restore)"))
+                        except FileNotFoundError:
+                            raise CommandError("psql not found. Install PostgreSQL client tools or pass --psql to this command.")
+
+                        # Now restore using psql < dump.sql
                         cmd = [
                             psql_bin,
                             "-h", str(host),

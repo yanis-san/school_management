@@ -17,3 +17,10 @@ def divide(value, arg):
         return float(value) / float(arg)
     except (ValueError, TypeError, ZeroDivisionError):
         return 0
+@register.filter
+def payment_total(payments):
+    """Calculer le total des paiements"""
+    try:
+        return sum(p.amount for p in payments)
+    except (ValueError, TypeError, AttributeError):
+        return 0

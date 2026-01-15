@@ -1,6 +1,13 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
 from django.utils import timezone
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.lib.units import cm
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from .models import CashCategory, CashTransaction
 
 
@@ -315,3 +322,156 @@ def cancel_transaction(request, transaction_id):
     
     messages.success(request, f"Transaction annulée. Montant restauré : {category.current_amount:,} DA".replace(',', ' '))
     return redirect('cash:category_detail', pk=category.id)
+
+
+def export_transactions_pdf(request, pk):
+    """
+    Exporter l'historique des transactions en PDF
+    """
+    category = get_object_or_404(CashCategory, pk=pk)
+    
+    # Récupérer les transactions
+    if category.is_total:
+        transactions = CashTransaction.objects.all().order_by('-created_at')[:100]
+    else:
+        transactions = category.transactions.all().order_by('-created_at')[:100]
+    
+    # Créer le PDF
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="transactions_{category.name}_{timezone.now().strftime("%d-%m-%Y")}.pdf"'
+    
+    doc = SimpleDocTemplate(response, pagesize=A4,
+                           rightMargin=1*cm, leftMargin=1*cm,
+                           topMargin=1.5*cm, bottomMargin=1.5*cm)
+    
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Styles personnalisés
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Title'],
+        fontSize=18,
+        textColor=colors.HexColor('#4F46E5'),
+        spaceAfter=12,
+        alignment=TA_CENTER
+    )
+    
+    header_style = ParagraphStyle(
+        'CustomHeader',
+        parent=styles['Normal'],
+        fontSize=11,
+        textColor=colors.grey,
+        spaceAfter=20,
+        alignment=TA_CENTER
+    )
+    
+    # Titre
+    elements.append(Paragraph(f"Historique des Transactions - {category.name}", title_style))
+    elements.append(Paragraph(f"Généré le {timezone.now().strftime('%d/%m/%Y à %H:%M')}", header_style))
+    elements.append(Spacer(1, 0.5*cm))
+    
+    # Info catégorie
+    info_data = [
+        ['Catégorie:', category.name],
+        ['Montant actuel:', f"{category.current_amount:,} DA".replace(',', ' ')],
+        ['Nombre de transactions:', str(transactions.count())],
+    ]
+    
+    if category.last_reset:
+        info_data.append(['Dernier reset:', category.last_reset.strftime('%d/%m/%Y à %H:%M')])
+    
+    info_table = Table(info_data, colWidths=[5*cm, 10*cm])
+    info_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
+        ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+        ('ALIGN', (0, 0), (0, -1), 'RIGHT'),
+        ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ('PADDING', (0, 0), (-1, -1), 8),
+    ]))
+    
+    elements.append(info_table)
+    elements.append(Spacer(1, 1*cm))
+    
+    # Tableau des transactions
+    if transactions:
+        # En-têtes
+        if category.is_total:
+            table_data = [['Date', 'Catégorie', 'Type', 'Montant', 'Avant', 'Après', 'Note']]
+        else:
+            table_data = [['Date', 'Type', 'Montant', 'Avant', 'Après', 'Note']]
+        
+        # Lignes de transactions
+        for transaction in transactions:
+            type_map = {
+                'ADD': 'Ajout',
+                'REMOVE': 'Retrait',
+                'SET': 'Définir',
+                'RESET': 'Reset'
+            }
+            
+            montant_str = ""
+            if transaction.transaction_type == 'ADD':
+                montant_str = f"+{transaction.amount:,}".replace(',', ' ')
+            elif transaction.transaction_type == 'REMOVE':
+                montant_str = f"-{transaction.amount:,}".replace(',', ' ')
+            else:
+                montant_str = f"{transaction.amount:,}".replace(',', ' ')
+            
+            row = [
+                transaction.created_at.strftime('%d/%m/%Y\n%H:%M'),
+            ]
+            
+            if category.is_total:
+                row.append(transaction.category.name)
+            
+            row.extend([
+                type_map.get(transaction.transaction_type, '?'),
+                montant_str + ' DA',
+                f"{transaction.amount_before:,} DA".replace(',', ' '),
+                f"{transaction.amount_after:,} DA".replace(',', ' '),
+                transaction.note[:40] + ('...' if len(transaction.note) > 40 else '')
+            ])
+            
+            table_data.append(row)
+        
+        # Définir les largeurs de colonnes
+        if category.is_total:
+            col_widths = [2.5*cm, 2.5*cm, 1.5*cm, 2.2*cm, 2.2*cm, 2.2*cm, 5*cm]
+        else:
+            col_widths = [2.5*cm, 1.8*cm, 2.2*cm, 2.2*cm, 2.2*cm, 6*cm]
+        
+        transactions_table = Table(table_data, colWidths=col_widths)
+        transactions_table.setStyle(TableStyle([
+            # En-tête
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            
+            # Corps du tableau
+            ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+            ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Date
+            ('ALIGN', (-3, 1), (-2, -1), 'RIGHT'),  # Montants
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')]),
+            ('PADDING', (0, 0), (-1, -1), 6),
+        ]))
+        
+        elements.append(transactions_table)
+    else:
+        elements.append(Paragraph("Aucune transaction pour cette catégorie.", styles['Normal']))
+    
+    # Construire le PDF
+    doc.build(elements)
+    
+    return response

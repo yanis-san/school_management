@@ -13,8 +13,8 @@
             </p>
         </div>
         <div class="flex gap-2 w-full sm:w-auto">
-            <button hx-get="{% url 'students:enrollment_form' %}" hx-target="body" hx-swap="beforeend"
-                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition shadow-sm text-sm sm:text-base">
+            <button id="new-enrollment-btn" hx-get="{% url 'students:enrollment_form' %}" hx-target="body" hx-swap="beforeend"
+                    class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition shadow-sm text-sm sm:text-base" title="Alt + A">
                 <span>+</span> Nouvelle Inscription
             </button>
         </div>
@@ -380,5 +380,13 @@ function deleteStudent(studentId, studentName) {
         alert('Erreur lors de la suppression');
     });
 }
+
+// Raccourci Alt+A pour Nouvelle Inscription
+document.addEventListener('keydown', function(e) {
+    if (e.altKey && e.key === 'a') {
+        e.preventDefault();
+        document.getElementById('new-enrollment-btn').click();
+    }
+});
 </script>
 {% endblock %}

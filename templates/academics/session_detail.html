@@ -22,9 +22,16 @@
                 <div class="text-xs text-indigo-800 uppercase font-bold">Rémunération Prof</div>
                 <div class="text-2xl font-bold text-indigo-900">{{ teacher_pay }} DA</div>
                 <div class="text-xs text-indigo-600">
-                    {{ duration_hours }}h x {{ session.cohort.teacher_hourly_rate }} DA/h
+                    {{ duration_hours }}h x {{ current_hourly_rate }} DA/h
                 </div>
                 <div class="text-xs text-gray-500 mt-1">Prof: {{ session.teacher.first_name }}</div>
+                {% if hourly_rate_override %}
+                    <div class="mt-2">
+                        <span class="inline-block text-[10px] font-bold bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                            💰 SURCHARGE: {{ hourly_rate_override }} DA/h (standard: {{ standard_hourly_rate }} DA/h)
+                        </span>
+                    </div>
+                {% endif %}
                 {% if session.duration_override_minutes %}
                     <div class="mt-2">
                         <span class="inline-block text-[10px] font-bold bg-orange-100 text-orange-800 px-2 py-1 rounded">
@@ -194,6 +201,47 @@
         </div>
 
         <div class="p-6 border-t border-gray-100 bg-gray-50 space-y-4">
+            <!-- Section Taux Horaire -->
+            <div class="bg-white p-4 rounded-lg border border-gray-200">
+                <label class="block text-sm font-bold text-gray-800 mb-3">💰 Taux Horaire pour cette Séance</label>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs text-gray-600 mb-1">Taux Standard du Groupe</p>
+                            <div class="text-lg font-bold text-gray-800">{{ standard_hourly_rate }} DA/h</div>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-600 mb-1">Taux Actuellement Utilisé</p>
+                            <div class="text-lg font-bold {% if hourly_rate_override %}text-orange-600{% else %}text-indigo-600{% endif %}">
+                                {{ current_hourly_rate }} DA/h
+                                {% if hourly_rate_override %}
+                                <span class="text-xs text-orange-600 font-normal"> (surcharge)</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-3 border-t border-gray-200">
+                        <div class="flex items-center gap-2">
+                            <input type="number" name="teacher_hourly_rate_override" 
+                                   class="flex-1 p-2 border-2 rounded-lg font-semibold text-center" 
+                                   placeholder="Laisser vide pour utiliser le taux standard"
+                                   value="{{ hourly_rate_override|default:'' }}"
+                                   min="1"
+                                   {% if session.status == 'COMPLETED' and not is_editing %}disabled{% endif %}>
+                            <button type="button" onclick="document.querySelector('input[name=teacher_hourly_rate_override]').value = ''; document.querySelector('input[name=teacher_hourly_rate_override]').focus();" 
+                                    class="px-3 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 text-sm font-medium"
+                                    {% if session.status == 'COMPLETED' and not is_editing %}disabled{% endif %}>
+                                Réinitialiser
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-600 mt-2">
+                            💡 Remplissez pour surcharger le taux pour cette séance uniquement. Le taux standard du groupe reste inchangé.
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
             <!-- Section Note de séance -->
             <div class="bg-white p-4 rounded-lg border border-gray-200">
                 <label class="block text-sm font-bold text-gray-800 mb-3">📝 Note sur la séance (Cahier de texte)</label>

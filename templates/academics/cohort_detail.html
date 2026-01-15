@@ -182,12 +182,12 @@
         <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <h3 class="font-bold text-gray-700">Calendrier des Séances</h3>
             <div class="flex flex-wrap gap-2">
-                <a href="{% url 'documents:download_cohort_attendance' cohort.id %}"
-                   class="inline-flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition shadow-sm">
+                <a href="{% url 'documents:download_cohort_payment_report' cohort.id %}"
+                   class="inline-flex items-center gap-2 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition shadow-sm">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
-                    Liste de Présence
+                    💰 Bilan Paiement PDF
                 </a>
                 <a href="{% url 'academics:list' %}" class="text-sm text-indigo-600 hover:text-indigo-800 flex items-center px-2">
                     Retour à la liste

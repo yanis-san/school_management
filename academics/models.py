@@ -189,6 +189,14 @@ class CourseSession(models.Model):
     duration_override_minutes = models.PositiveIntegerField(null=True, blank=True)
     planned_duration_minutes = models.PositiveIntegerField(null=True, blank=True, help_text="Durée planifiée au moment de la création (minutes)")
 
+    # Surcharge facultative du taux horaire (pour cette séance uniquement)
+    teacher_hourly_rate_override = models.IntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Taux Horaire Spécifique (DA/h)",
+        help_text="Laissez vide pour utiliser le taux standard du cohort. Remplissez pour surcharger pour cette séance uniquement."
+    )
+
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='SCHEDULED')
     note = models.TextField(blank=True)
 
@@ -227,9 +235,14 @@ class CourseSession(models.Model):
 
     @property
     def pay_hourly_rate(self) -> int:
-        """Tarif horaire utilisé pour la paie (spécifique Ramadan si défini)."""
+        """Tarif horaire utilisé pour la paie (surcharge > Ramadan > standard)."""
+        # Priorité 1: Surcharge spécifique à cette séance
+        if self.teacher_hourly_rate_override is not None:
+            return self.teacher_hourly_rate_override
+        # Priorité 2: Tarif spécifique Ramadan
         if self.is_ramadan and self.cohort.ramadan_teacher_hourly_rate:
             return self.cohort.ramadan_teacher_hourly_rate
+        # Priorité 3: Tarif standard du cohort
         return self.cohort.teacher_hourly_rate
 
     @property

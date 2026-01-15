@@ -400,3 +400,116 @@ def academic_year_list(request):
     
     context = {'years': years}
     return render(request, 'core/academic_year_list.html', context)
+
+
+@login_required
+def backups_and_recovery(request):
+    """Page pour gérer les sauvegardes et restaurations."""
+    from django.core.management import call_command
+    from io import StringIO
+    from pathlib import Path
+    from datetime import datetime
+    
+    if not request.user.is_superuser and not request.user.is_staff:
+        messages.error(request, "Accès réservé aux administrateurs")
+        return redirect('dashboard')
+    
+    backups_dir = Path('backups_local')
+    recent_backups = []
+    
+    if backups_dir.exists():
+        # Lister les fichiers de sauvegarde (.zip et .tar.gz)
+        for backup_file in sorted(backups_dir.glob('*'), reverse=True)[:10]:
+            if backup_file.is_file() and (backup_file.suffix in ['.zip', '.gz'] or backup_file.name.endswith('.tar.gz')):
+                recent_backups.append({
+                    'name': backup_file.name,
+                    'path': str(backup_file),
+                    'size_mb': backup_file.stat().st_size / (1024 * 1024),
+                    'date': datetime.fromtimestamp(backup_file.stat().st_mtime)
+                })
+    
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'backup':
+            try:
+                # Récupérer le chemin de destination personnalisé (optionnel)
+                backup_dest = request.POST.get('backup_dest', '').strip()
+                
+                # Appeler la commande Django directement
+                out = StringIO()
+                err = StringIO()
+                cmd_args = {}
+                if backup_dest:
+                    cmd_args['dest'] = backup_dest
+                
+                call_command('backup_data', **cmd_args, stdout=out, stderr=err)
+                
+                dest_info = f" dans {backup_dest}" if backup_dest else " dans OneDrive (par défaut)"
+                messages.success(request, f"✅ Sauvegarde effectuée avec succès!{dest_info}")
+                
+            except Exception as e:
+                messages.error(request, f"❌ Erreur lors de la sauvegarde: {str(e)}")
+            
+            return redirect('backups_and_recovery')
+        
+        elif action == 'restore_local':
+            try:
+                backup_file_path = request.POST.get('backup_file', '').strip()
+                if not backup_file_path:
+                    messages.error(request, "Aucune sauvegarde sélectionnée")
+                    return redirect('backups_and_recovery')
+                
+                backup_path = Path(backup_file_path)
+                if not backup_path.exists():
+                    messages.error(request, "❌ Fichier de sauvegarde introuvable")
+                    return redirect('backups_and_recovery')
+                
+                # Appeler la commande Django directement
+                out = StringIO()
+                err = StringIO()
+                call_command('restore_data', str(backup_path), force=True, stdout=out, stderr=err)
+                
+                messages.success(request, f"✅ Restauration de {backup_path.name} effectuée avec succès!")
+                
+            except Exception as e:
+                messages.error(request, f"❌ Erreur lors de la restauration: {str(e)}")
+            
+            return redirect('backups_and_recovery')
+        
+        elif action == 'restore':
+            try:
+                backup_file = request.FILES.get('backup_file')
+                if not backup_file:
+                    messages.error(request, "Aucun fichier sélectionné")
+                    return redirect('backups_and_recovery')
+                
+                # Sauvegarder le fichier temporairement dans backups_local
+                temp_backup = backups_dir / backup_file.name
+                backups_dir.mkdir(exist_ok=True)
+                
+                with open(temp_backup, 'wb') as f:
+                    for chunk in backup_file.chunks():
+                        f.write(chunk)
+                
+                # Vérifier que le fichier a bien été écrit
+                if not temp_backup.exists() or temp_backup.stat().st_size == 0:
+                    messages.error(request, "❌ Erreur: Fichier corrompu ou vide")
+                    return redirect('backups_and_recovery')
+                
+                # Appeler la commande Django directement
+                out = StringIO()
+                err = StringIO()
+                call_command('restore_data', str(temp_backup), force=True, stdout=out, stderr=err)
+                
+                messages.success(request, "✅ Restauration effectuée avec succès!")
+                
+            except Exception as e:
+                messages.error(request, f"❌ Erreur lors de la restauration: {str(e)}")
+            
+            return redirect('backups_and_recovery')
+    
+    context = {
+        'recent_backups': recent_backups,
+    }
+    return render(request, 'core/backups_and_recovery.html', context)

@@ -22,7 +22,7 @@ class Student(models.Model):
     birth_date = models.DateField(blank=True, null=True)
     motivation = models.TextField(blank=True, verbose_name="Pourquoi ?")
     # Code étudiant unique (généré auto ou manuel)
-    student_code = models.CharField(max_length=20, unique=True, blank=True)
+    student_code = models.CharField(max_length=20, unique=True, blank=True, null=True)
     profile_picture = models.ImageField(
         upload_to='profiles/students/',
         blank=True,
@@ -147,6 +147,11 @@ class Enrollment(models.Model):
             return 0
         remaining = float(self.hours_purchased) - float(self.hours_consumed)
         return round(remaining if remaining > 0 else 0.0, 2)
+    
+    @property
+    def is_standard_tariff(self) -> bool:
+        """Retourne True si le tarif appliqué est le tarif standard du groupe"""
+        return self.tariff.amount == self.cohort.standard_price
     
 
 

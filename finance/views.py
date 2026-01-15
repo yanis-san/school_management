@@ -181,8 +181,8 @@ def teacher_payroll_list(request):
             # Utiliser la durée effective (override si défini)
             hours = float(session.duration_hours)
 
-            # Montant pour cette séance
-            session_pay = hours * float(session.cohort.teacher_hourly_rate)
+            # Montant pour cette séance (utilise le taux override s'il existe)
+            session_pay = hours * float(session.pay_hourly_rate)
 
             total_hours += hours
             total_amount += session_pay
@@ -250,12 +250,12 @@ def teacher_payroll_detail(request, teacher_id):
 
     for session in sessions:
         hours = float(session.duration_hours)
-        pay = hours * float(session.cohort.teacher_hourly_rate)
+        pay = hours * float(session.pay_hourly_rate)
 
         session_details.append({
             'session': session,
             'hours': round(hours, 2),
-            'hourly_rate': float(session.cohort.teacher_hourly_rate),
+            'hourly_rate': float(session.pay_hourly_rate),
             'pay': round(pay, 2),
         })
 

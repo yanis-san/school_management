@@ -7,6 +7,10 @@ Param(
 $ErrorActionPreference = 'Stop'
 Set-Location -Path $PSScriptRoot
 
+# Fix encoding for Unicode output
+[System.Environment]::SetEnvironmentVariable('PYTHONIOENCODING', 'utf-8')
+$env:PYTHONIOENCODING = 'utf-8'
+
 $venv = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path $venv)) {
   Write-Host 'Erreur: Environnement virtuel introuvable (.venv)' -ForegroundColor Red
