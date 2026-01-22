@@ -7,11 +7,6 @@ class SyncLog(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     
-    # Infos backup
-    backup_created = models.BooleanField(default=False)
-    backup_path = models.CharField(max_length=500, blank=True, null=True)
-    backup_message = models.TextField(blank=True)
-    
     # Stats brutes (JSON)
     stats_json = models.JSONField(default=dict, blank=True)
     

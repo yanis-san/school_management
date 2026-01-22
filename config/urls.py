@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
-from core.views import dashboard, login_view, logout_view, signup_view, academic_year_list, backups_and_recovery
+from core.views import dashboard, login_view, logout_view, signup_view, academic_year_list, backups_and_recovery, backup_start, backup_progress, backup_result, download_schedule_pdf
 from students.views import create_enrollment
 
 urlpatterns = [
@@ -14,6 +14,10 @@ urlpatterns = [
     path('', dashboard, name='dashboard'),
     path('academic-years/', academic_year_list, name='academic_year_list'),
     path('backups/', backups_and_recovery, name='backups_and_recovery'),
+    path('backup/start/', backup_start, name='backup_start'),
+    path('backup/progress/', backup_progress, name='backup_progress'),
+    path('backup/result/', backup_result, name='backup_result'),
+    path('schedule/pdf/', download_schedule_pdf, name='download_schedule_pdf'),
     path('enrollment/new/', create_enrollment, name='create_enrollment'),
     path('students/', include('students.urls')),
     path('prospects/', include('prospects.urls')),

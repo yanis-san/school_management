@@ -112,9 +112,9 @@
                                     </div>
                                     {% if current_academic_year %}
                                         {% if student.id in annual_fee_paid_ids %}
-                                            <span class="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Payé</span>
+                                            <span class="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Payé ({{ current_academic_year.registration_fee_amount|floatformat:0 }} DA)</span>
                                         {% else %}
-                                            <span class="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Non payé</span>
+                                            <span class="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Non payé ({{ current_academic_year.registration_fee_amount|floatformat:0 }} DA)</span>
                                         {% endif %}
                                     {% endif %}
                                 </div>
@@ -230,9 +230,9 @@
                                     </div>
                                     {% if current_academic_year %}
                                         {% if student.id in annual_fee_paid_ids %}
-                                            <span class="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Payé</span>
+                                            <span class="text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Payé ({{ current_academic_year.registration_fee_amount|floatformat:0 }} DA)</span>
                                         {% else %}
-                                            <span class="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Non payé</span>
+                                            <span class="text-[10px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded">Frais {{ current_academic_year.label }}: Non payé ({{ current_academic_year.registration_fee_amount|floatformat:0 }} DA)</span>
                                         {% endif %}
                                     {% endif %}
                                 </div>

@@ -302,6 +302,14 @@ def student_detail(request, pk):
 
     current_year = AcademicYear.get_current()
     fee_paid = student.has_paid_registration_fee(current_year) if current_year else False
+    
+    # Récupérer l'objet StudentAnnualFee pour afficher la date de paiement
+    student_annual_fee = None
+    if current_year:
+        student_annual_fee = StudentAnnualFee.objects.filter(
+            student=student,
+            academic_year=current_year
+        ).first()
 
     context = {
         'student': student,
@@ -310,6 +318,7 @@ def student_detail(request, pk):
         'past_enrollments': past_enrollments,
         'current_academic_year': current_year,
         'annual_fee_paid': fee_paid,
+        'student_annual_fee': student_annual_fee,
     }
     return render(request, 'students/student_detail.html', context)
 
@@ -432,7 +441,10 @@ def delete_student(request, pk):
 
 @require_http_methods(["POST"])
 def toggle_annual_fee(request, pk):
-    """Basculer le statut de paiement des frais d'inscription annuels"""
+    """Marquer les frais d'inscription comme payés/impayés avec une date optionnelle"""
+    import json
+    from datetime import datetime
+    
     student = get_object_or_404(Student, pk=pk)
     current_year = AcademicYear.get_current()
     
@@ -446,18 +458,42 @@ def toggle_annual_fee(request, pk):
         defaults={'amount': 1000, 'is_paid': False}
     )
     
-    # Basculer le statut
-    fee.is_paid = not fee.is_paid
-    if fee.is_paid:
-        from django.utils import timezone
-        fee.paid_at = timezone.now()
-    else:
+    # Récupérer l'action et la date du payload JSON
+    try:
+        data = json.loads(request.body)
+        action = data.get('action', 'mark_paid')  # 'mark_paid' ou 'mark_unpaid'
+        payment_date = data.get('payment_date')
+    except:
+        action = 'mark_paid'
+        payment_date = None
+    
+    # Appliquer l'action
+    if action == 'mark_paid':
+        fee.is_paid = True
+        if payment_date:
+            try:
+                # Parser la date (format: YYYY-MM-DD)
+                parsed_date = datetime.strptime(payment_date, '%Y-%m-%d').date()
+                from django.utils import timezone
+                fee.paid_at = timezone.make_aware(datetime.combine(parsed_date, datetime.min.time()))
+            except:
+                from django.utils import timezone
+                fee.paid_at = timezone.now()
+        else:
+            from django.utils import timezone
+            fee.paid_at = timezone.now()
+    elif action == 'mark_unpaid':
+        fee.is_paid = False
         fee.paid_at = None
+    
     fee.save()
+    
+    formatted_date = fee.paid_at.strftime('%d/%m/%Y') if fee.paid_at else None
     
     return JsonResponse({
         'success': True,
         'is_paid': fee.is_paid,
+        'paid_at': formatted_date,
         'message': f"Frais {current_year.label} marqués comme {'payés' if fee.is_paid else 'non payés'}"
     })
 

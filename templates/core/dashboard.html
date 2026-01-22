@@ -6,12 +6,18 @@
             <h2 class="text-2xl sm:text-3xl font-bold text-gray-800">Bienvenue, {{ request.user.first_name }}</h2>
             <p class="text-sm text-gray-500 mt-1">{{ today|date:"l d F Y" }}</p>
         </div>
-        {% if not is_teacher %}
-        <button hx-get="{% url 'students:enrollment_form' %}" hx-target="body" hx-swap="beforeend"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm">
-            + Inscription
-        </button>
-        {% endif %}
+        <div class="flex gap-3">
+            <a href="{% url 'download_schedule_pdf' %}"
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium text-sm transition">
+                📊 Emploi du Temps PDF
+            </a>
+            {% if not is_teacher %}
+            <button hx-get="{% url 'students:enrollment_form' %}" hx-target="body" hx-swap="beforeend"
+                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium text-sm">
+                + Inscription
+            </button>
+            {% endif %}
+        </div>
     </div>
 
     {% if is_teacher %}

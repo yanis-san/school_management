@@ -28,15 +28,22 @@
                         <span class="text-xs font-semibold bg-gray-100 text-gray-700 px-2 py-0.5 rounded border border-gray-200">Sexe: {{ student.sex }}</span>
                     {% endif %}
                     {% if current_academic_year %}
-                        <span id="annual-fee-badge" class="text-xs font-bold px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition border border-gray-200 bg-gray-50 text-gray-800"
-                              onclick="toggleAnnualFee({{ student.id }})"
-                              title="Cliquer pour marquer comme {{ annual_fee_paid|yesno:'non payé,payé' }}">
-                            {% if annual_fee_paid %}
-                                <span class="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded">✓ Frais {{ current_academic_year.label }}: Payé</span>
-                            {% else %}
-                                <span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded">✗ Frais {{ current_academic_year.label }}: Non payé</span>
+                        <div>
+                            <span id="annual-fee-badge" class="text-xs font-bold px-2 py-0.5 rounded cursor-pointer hover:opacity-80 transition border border-gray-200 bg-gray-50 text-gray-800"
+                                  onclick="openAnnualFeeModal({{ student.id }})"
+                                  title="Cliquer pour modifier le statut de paiement">
+                                {% if annual_fee_paid %}
+                                    <span class="bg-emerald-100 text-emerald-900 px-2 py-0.5 rounded">✓ Frais {{ current_academic_year.label }}: Payé ({{ student_annual_fee.amount }} DA)</span>
+                                {% else %}
+                                    <span class="bg-rose-100 text-rose-900 px-2 py-0.5 rounded">✗ Frais {{ current_academic_year.label }}: Non payé ({{ current_academic_year.registration_fee_amount|floatformat:0 }} DA)</span>
+                                {% endif %}
+                            </span>
+                            {% if annual_fee_paid and student_annual_fee.paid_at %}
+                            <div class="text-xs text-gray-500 mt-0.5">
+                                Payé le: <span class="font-semibold text-gray-700">{{ student_annual_fee.paid_at|date:"d/m/Y" }}</span>
+                            </div>
                             {% endif %}
-                        </span>
+                        </div>
                     {% endif %}
                 </div>
             </div>
@@ -290,6 +297,44 @@
 
         </div>
     </div>
+    <!-- Modal pour les frais d'inscription -->
+    <div id="annual-fee-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-xl shadow-lg max-w-md w-full mx-4">
+            <div class="p-6 border-b border-gray-100 bg-gradient-to-r from-emerald-50 to-teal-50">
+                <h3 class="text-lg font-bold text-gray-900">Frais d'Inscription</h3>
+                <p class="text-sm text-gray-600 mt-1">
+                    {% if current_academic_year %}
+                        {{ current_academic_year.label }} · <span class="font-semibold">{{ current_academic_year.registration_fee_amount|floatformat:0 }} DA</span>
+                    {% endif %}
+                </p>
+            </div>
+            <div class="p-6">
+                <div class="space-y-4">
+                    <div id="action-selector" class="flex gap-2 mb-4">
+                        <button onclick="setModalAction('mark_paid')" class="flex-1 px-3 py-2 rounded-lg border-2 border-emerald-300 bg-emerald-50 text-emerald-700 font-semibold transition" id="btn-mark-paid">
+                            ✅ Marquer Payé
+                        </button>
+                        <button onclick="setModalAction('mark_unpaid')" class="flex-1 px-3 py-2 rounded-lg border-2 border-gray-200 bg-white text-gray-600 font-semibold hover:border-red-300 transition" id="btn-mark-unpaid">
+                            ✗ Marquer Impayé
+                        </button>
+                    </div>
+                    <div id="date-input-container">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">Date du paiement</label>
+                        <input type="date" id="payment-date-input" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none" />
+                        <p class="text-xs text-gray-500 mt-1">Laissez vide pour utiliser aujourd'hui</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-100 bg-gray-50 flex justify-end gap-2">
+                <button onclick="closeAnnualFeeModal()" class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 font-medium transition">
+                    Annuler
+                </button>
+                <button onclick="submitAnnualFee()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium transition">
+                    Confirmer
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -308,31 +353,76 @@ function getCookie(name) {
     return cookieValue;
 }
 
-function toggleAnnualFee(studentId) {
+let currentModalAction = 'mark_paid';
+
+function setModalAction(action) {
+    currentModalAction = action;
+    
+    // Mettre à jour les boutons
+    const btnPaid = document.getElementById('btn-mark-paid');
+    const btnUnpaid = document.getElementById('btn-mark-unpaid');
+    const dateContainer = document.getElementById('date-input-container');
+    
+    if (action === 'mark_paid') {
+        btnPaid.classList.add('border-emerald-300', 'bg-emerald-50', 'text-emerald-700');
+        btnPaid.classList.remove('border-gray-200', 'bg-white', 'text-gray-600');
+        btnUnpaid.classList.remove('border-red-300', 'bg-red-50', 'text-red-700');
+        btnUnpaid.classList.add('border-gray-200', 'bg-white', 'text-gray-600');
+        dateContainer.classList.remove('hidden');
+    } else {
+        btnUnpaid.classList.add('border-red-300', 'bg-red-50', 'text-red-700');
+        btnUnpaid.classList.remove('border-gray-200', 'bg-white', 'text-gray-600');
+        btnPaid.classList.remove('border-emerald-300', 'bg-emerald-50', 'text-emerald-700');
+        btnPaid.classList.add('border-gray-200', 'bg-white', 'text-gray-600');
+        dateContainer.classList.add('hidden');
+    }
+}
+
+function openAnnualFeeModal(studentId) {
     // Déterminer le statut actuel depuis le badge
     const badge = document.getElementById('annual-fee-badge');
-    const isPaid = badge.querySelector('.bg-green-100\\/90') !== null;
+    const isPaid = badge.querySelector('.bg-emerald-100') !== null;
     
-    // Message de confirmation
-    const action = isPaid ? 'NON PAYÉ' : 'PAYÉ';
-    const message = isPaid 
-        ? `Marquer les frais d'inscription comme NON PAYÉS ?\n\n⚠️ L'étudiant apparaîtra comme n'ayant pas payé.`
-        : `Confirmer le paiement des frais d'inscription ?\n\n✅ L'étudiant sera marqué comme ayant payé les frais annuels.`;
+    // Définir l'action par défaut selon le statut actuel
+    const defaultAction = isPaid ? 'mark_unpaid' : 'mark_paid';
+    setModalAction(defaultAction);
     
-    if (!confirm(message)) {
-        return;
-    }
+    // Mettre la date de paiement à aujourd'hui par défaut
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('payment-date-input').value = today;
+    
+    // Stocker l'ID de l'étudiant
+    document.getElementById('annual-fee-modal').dataset.studentId = studentId;
+    
+    // Afficher la modal
+    document.getElementById('annual-fee-modal').classList.remove('hidden');
+}
+
+function closeAnnualFeeModal() {
+    document.getElementById('annual-fee-modal').classList.add('hidden');
+}
+
+function submitAnnualFee() {
+    const studentId = document.getElementById('annual-fee-modal').dataset.studentId;
+    const paymentDate = document.getElementById('payment-date-input').value;
+    
+    const payload = {
+        action: currentModalAction,
+        payment_date: (currentModalAction === 'mark_paid') ? (paymentDate || null) : null
+    };
     
     fetch(`/students/${studentId}/toggle-annual-fee/`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': getCookie('csrftoken'),
             'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(payload)
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            closeAnnualFeeModal();
             // Recharger la page pour afficher le nouveau statut
             window.location.reload();
         } else {
@@ -344,6 +434,14 @@ function toggleAnnualFee(studentId) {
         alert('Erreur lors de la modification du statut');
     });
 }
+
+// Fermer la modal au clic en dehors
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('annual-fee-modal');
+    if (e.target === modal) {
+        closeAnnualFeeModal();
+    }
+});
 
 // Raccourci Alt+A pour Nouvelle Inscription
 document.addEventListener('keydown', function(e) {

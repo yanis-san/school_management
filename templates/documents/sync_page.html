@@ -118,14 +118,14 @@
         </button>
 
         <!-- Warning -->
-        <div class="mt-4 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+        <div class="mt-4 bg-blue-50 border-l-4 border-blue-400 p-4 rounded">
             <div class="flex">
-                <svg class="w-6 h-6 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                <svg class="w-6 h-6 text-blue-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
                 <div>
-                    <p class="font-semibold text-yellow-800">🔒 Sauvegarde automatique</p>
-                    <p class="text-sm text-yellow-700">Un backup PostgreSQL sera créé avant toute importation</p>
+                    <p class="font-semibold text-blue-800">📤 Importation de données</p>
+                    <p class="text-sm text-blue-700">Les données du fichier ZIP seront importées dans la base</p>
                 </div>
             </div>
         </div>
@@ -152,7 +152,7 @@
                 </svg>
             </div>
             <p class="text-xl font-semibold text-center text-gray-800">Synchronisation en cours...</p>
-            <p class="text-center text-gray-600 mt-2">Création du backup et importation des données</p>
+            <p class="text-center text-gray-600 mt-2">Importation des données...</p>
         </div>
     </div>
 </div>
@@ -262,24 +262,10 @@
             alert('❌ Erreur réseau : ' + error.message);
         }
     }
-
     function displayResults(data) {
         const resultsContent = document.getElementById('resultsContent');
         
         let html = '';
-        
-        // Backup info
-        if (data.backup_created) {
-            const bgColor = data.backup_created ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200';
-            const textColor = data.backup_created ? 'text-green-800' : 'text-yellow-800';
-            html += `
-                <div class="${bgColor} border rounded-lg p-4 mb-6">
-                    <p class="font-semibold ${textColor} mb-1">${data.backup_created ? '✅ Backup créé' : '⚠️ Backup'}</p>
-                    <p class="text-sm ${textColor}">${data.backup_message}</p>
-                    ${data.backup_path ? `<p class="text-xs ${textColor} mt-1 font-mono">${data.backup_path}</p>` : ''}
-                </div>
-            `;
-        }
 
         // Stats by category
         const categories = [

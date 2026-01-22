@@ -9,6 +9,7 @@ urlpatterns = [
     path('cohorts/<int:pk>/', views.cohort_detail, name='detail'),
     path('cohorts/<int:pk>/generate/', views.generate_sessions, name='generate_sessions'),
     path('cohorts/<int:pk>/finish/', views.finish_cohort, name='finish_cohort'),
+    path('cohorts/<int:cohort_id>/add-session/', views.add_session_manual, name='add_session'),
     
     # --- NOUVELLE ROUTE ---
     path('session/<int:session_id>/', views.session_detail, name='session_detail'),

@@ -2,6 +2,7 @@
 from django.db import models
 from core.models import User
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.utils import timezone
 
 class Tariff(models.Model):
     """
@@ -34,7 +35,7 @@ class Payment(models.Model):
 
     amount = models.IntegerField(verbose_name="Montant (DA)")
     method = models.CharField(max_length=10, choices=METHODS, default='CASH')
-    date = models.DateField(auto_now_add=True)
+    date = models.DateField(verbose_name="Date de paiement", default=timezone.now, help_text="Laissez vide pour utiliser la date d'aujourd'hui")
     transaction_id = models.CharField(max_length=100, blank=True, help_text="Numéro de chèque ou virement")
 
     # Reçu / Justificatif (PDF, image)

@@ -9,6 +9,14 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib import messages
 from .models import User, AcademicYear
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.http import require_http_methods
+import threading
+import json
+import time
+from pathlib import Path
+from datetime import datetime
+from .schedule_generator import generate_schedule_pdf
 
 @login_required
 def dashboard(request):
@@ -513,3 +521,202 @@ def backups_and_recovery(request):
         'recent_backups': recent_backups,
     }
     return render(request, 'core/backups_and_recovery.html', context)
+
+
+# ===== SYSTÈME DE SAUVEGARDE AVEC BARRE DE PROGRESSION HTMX =====
+
+# Stockage global de l'état de la sauvegarde
+backup_state = {
+    'status': 'idle',  # idle, running, completed, failed
+    'progress': 0,
+    'message': '',
+    'backup_file': None,
+    'backup_name': None,
+    'backup_size': None,
+    'error': None,
+    'start_time': None,
+}
+
+
+def run_backup_in_background():
+    """Exécute la sauvegarde en arrière-plan"""
+    global backup_state
+    
+    try:
+        backup_state['status'] = 'running'
+        backup_state['progress'] = 10
+        backup_state['message'] = 'Initialisation de la sauvegarde...'
+        backup_state['error'] = None
+        
+        import subprocess
+        from django.conf import settings
+        
+        # Info base de données
+        db_name = settings.DATABASES['default']['NAME']
+        db_user = settings.DATABASES['default']['USER']
+        db_host = settings.DATABASES['default']['HOST']
+        db_port = settings.DATABASES['default']['PORT']
+        db_password = settings.DATABASES['default']['PASSWORD']
+        
+        # Dossier OneDrive
+        backup_dir = Path(r"C:\Users\Social Media Manager\OneDrive\Torii-management\backups")
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_file = backup_dir / f"backup_{db_name}_{timestamp}.sql"
+        backup_gz = backup_dir / f"backup_{db_name}_{timestamp}.sql.gz"
+        
+        # Étape 1: Dump
+        backup_state['progress'] = 20
+        backup_state['message'] = 'Dump de la base de données...'
+        
+        env = {**dict(__import__('os').environ), 'PGPASSWORD': db_password}
+        
+        dump_cmd = [
+            'pg_dump',
+            '-h', db_host,
+            '-U', db_user,
+            '-p', str(db_port),
+            '-Fc',
+            db_name
+        ]
+        
+        with open(backup_file, 'wb') as f:
+            subprocess.run(dump_cmd, env=env, stdout=f, stderr=subprocess.PIPE, check=True)
+        
+        # Étape 2: Compression
+        backup_state['progress'] = 70
+        backup_state['message'] = 'Compression du fichier...'
+        
+        import gzip
+        import shutil
+        
+        with open(backup_file, 'rb') as f_in:
+            with gzip.open(backup_gz, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        
+        backup_file.unlink()
+        
+        # Étape 3: Hash et métadonnées
+        backup_state['progress'] = 85
+        backup_state['message'] = 'Calcul de l\'intégrité...'
+        
+        import hashlib
+        sha256_hash = hashlib.sha256()
+        with open(backup_gz, 'rb') as f:
+            for byte_block in iter(lambda: f.read(4096), b""):
+                sha256_hash.update(byte_block)
+        
+        file_hash = sha256_hash.hexdigest()
+        size_mb = backup_gz.stat().st_size / (1024 * 1024)
+        
+        # Créer métadonnées
+        metadata = {
+            'backup_file': backup_gz.name,
+            'timestamp': timestamp,
+            'datetime': datetime.now().isoformat(),
+            'database': db_name,
+            'size_bytes': backup_gz.stat().st_size,
+            'hash': file_hash,
+            'status': 'completed'
+        }
+        
+        metadata_file = backup_dir / f"backup_{db_name}_{timestamp}.json"
+        with open(metadata_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        # Étape 4: Succès
+        backup_state['progress'] = 100
+        backup_state['status'] = 'completed'
+        backup_state['message'] = f'✅ Sauvegarde réussie!'
+        backup_state['backup_file'] = str(backup_gz)
+        backup_state['backup_name'] = backup_gz.name
+        backup_state['backup_size'] = f'{size_mb:.2f} MB'
+        
+        # Auto-dismiss après 10 secondes
+        def auto_dismiss():
+            time.sleep(10)
+            backup_state['status'] = 'idle'
+        
+        threading.Thread(target=auto_dismiss, daemon=True).start()
+        
+    except Exception as e:
+        backup_state['status'] = 'failed'
+        backup_state['error'] = str(e)
+        backup_state['message'] = f'❌ Erreur: {str(e)}'
+
+
+@login_required
+@require_http_methods(["POST"])
+def backup_start(request):
+    """Démarre la sauvegarde et retourne le template de progression"""
+    global backup_state
+    
+    # Démarrer la sauvegarde en thread
+    backup_thread = threading.Thread(target=run_backup_in_background, daemon=True)
+    backup_thread.start()
+    
+    # Retourner le template de progression
+    return render(request, 'core/backup_progress.html', {
+        'backup_state': backup_state
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def backup_progress(request):
+    """Retourne la progression actuelle de la sauvegarde"""
+    global backup_state
+    
+    # Si la sauvegarde est terminée, ajouter HX-Trigger header
+    response = render(request, 'core/backup_progress_bar.html', {
+        'backup_state': backup_state
+    })
+    
+    if backup_state['status'] == 'completed':
+        response['HX-Trigger'] = 'done'
+    elif backup_state['status'] == 'failed':
+        response['HX-Trigger'] = 'done'
+    
+    return response
+
+
+@login_required
+@require_http_methods(["GET"])
+def backup_result(request):
+    """Affiche le résultat final de la sauvegarde"""
+    global backup_state
+    
+    return render(request, 'core/backup_result.html', {
+        'backup_state': backup_state
+    })
+
+
+@login_required
+@require_http_methods(["GET"])
+def download_schedule_pdf(request):
+    """Génère et télécharge l'emploi du temps en PDF"""
+    
+    try:
+        # Générer le PDF
+        pdf_buffer = generate_schedule_pdf()
+        
+        if not pdf_buffer:
+            messages.error(request, "❌ Aucune séance trouvée pour les 3 prochains mois")
+            return redirect('dashboard')
+        
+        # Créer la réponse avec le PDF
+        response = HttpResponse(pdf_buffer, content_type='application/pdf')
+        
+        # Nom du fichier
+        from datetime import date
+        today = date.today()
+        filename = f"emploi_du_temps_{today.strftime('%Y%m%d')}.pdf"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        return response
+        
+    except Exception as e:
+        messages.error(request, f"❌ Erreur lors de la génération du PDF: {str(e)}")
+        return redirect('dashboard')
+

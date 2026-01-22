@@ -450,3 +450,81 @@ def change_session_teacher(request, session_id):
         'substitute_teacher': session.cohort.substitute_teacher,
     }
     return render(request, 'academics/change_session_teacher.html', context)
+
+
+def add_session_manual(request, cohort_id):
+    """
+    Ajouter une séance manuellement via formulaire.
+    Si date/heure ne sont pas remplies, propose automatiquement la prochaine séance
+    selon le planning hebdomadaire (WeeklySchedule).
+    Pré-remplit aussi la salle et prof selon le créneau planifié.
+    """
+    from .forms import CourseSessionForm
+    from datetime import datetime
+    
+    cohort = get_object_or_404(Cohort, pk=cohort_id)
+    next_scheduled = None
+    
+    if request.method == 'POST':
+        form = CourseSessionForm(request.POST)
+        if form.is_valid():
+            session = form.save(commit=False)
+            session.cohort = cohort
+            
+            # Si date/heure ne sont pas remplies, utiliser le planning automatique
+            if not session.date or not session.start_time or not session.end_time:
+                next_slot = cohort.get_next_scheduled_session_time()
+                if next_slot:
+                    session.date = next_slot['date']
+                    session.start_time = next_slot['start_time']
+                    session.end_time = next_slot['end_time']
+                    # Assigner la salle du créneau aussi
+                    if next_slot['classroom']:
+                        session.classroom = next_slot['classroom']
+                else:
+                    messages.error(request, "Impossible de déterminer la prochaine séance. Veuillez saisir manuellement la date et les horaires.")
+                    # Garder le formulaire avec les données saisies
+                    context = {
+                        'cohort': cohort,
+                        'form': form,
+                        'page_title': f'Ajouter une séance - {cohort.name}',
+                    }
+                    return render(request, 'academics/add_session.html', context)
+            
+            session.save()
+            # Formater la date et l'heure correctement en Python
+            date_str = session.date.strftime('%d/%m/%Y')
+            time_str = session.start_time.strftime('%H:%M')
+            messages.success(request, f"Séance du {date_str} à {time_str} ajoutée avec succès !")
+            return redirect('academics:detail', pk=cohort.id)
+    else:
+        # Calculer la prochaine séance selon le planning
+        next_scheduled = cohort.get_next_scheduled_session_time()
+        
+        # Pré-remplir avec des valeurs par défaut
+        initial_data = {
+            'status': 'SCHEDULED',
+            'teacher': cohort.teacher,
+        }
+        
+        # Si un créneau a été trouvé, le proposer
+        if next_scheduled:
+            initial_data.update({
+                'date': next_scheduled['date'],
+                'start_time': next_scheduled['start_time'],
+                'end_time': next_scheduled['end_time'],
+                'classroom': next_scheduled['classroom'],
+            })
+        
+        form = CourseSessionForm(initial=initial_data)
+    
+    # Filtrer les professeurs disponibles
+    form.fields['teacher'].queryset = form.fields['teacher'].queryset.filter(is_teacher=True)
+    
+    context = {
+        'cohort': cohort,
+        'form': form,
+        'page_title': f'Ajouter une séance - {cohort.name}',
+        'next_scheduled': next_scheduled,
+    }
+    return render(request, 'academics/add_session.html', context)

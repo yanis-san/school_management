@@ -167,6 +167,13 @@
                 <p class="text-xs text-gray-500 mt-1">"Générer" complète le planning après un changement de date de fin ou d'horaires.</p>
             </div>
             <div class="flex flex-wrap gap-2">
+                <a href="{% url 'academics:add_session' cohort.id %}" 
+                   class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold whitespace-nowrap shadow-sm transition inline-flex items-center gap-2">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Ajouter une séance
+                </a>
                 <form method="post" action="{% url 'academics:generate_sessions' cohort.id %}">
                     {% csrf_token %}
                     <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold whitespace-nowrap shadow-sm transition">

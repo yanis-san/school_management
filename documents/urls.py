@@ -35,5 +35,9 @@ urlpatterns = [
     path('cohort/<int:cohort_id>/complete/', views.download_cohort_complete_zip, name='download_cohort_complete'),
     path('cohort/<int:cohort_id>/payment-report/', views.download_cohort_payment_report, name='download_cohort_payment_report'),
     path('all-cohorts/payment-report/', views.download_all_cohorts_payment_report, name='download_all_cohorts_payment_report'),
+    
+    # Professeurs
+    path('teachers/', views.teachers_list, name='teachers_list'),
+    path('teachers/<int:teacher_id>/download/', views.download_teacher_document, name='download_teacher_document'),
 ]
 

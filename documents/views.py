@@ -985,9 +985,6 @@ def import_global_sync(request):
         # Créer le SyncLog
         sync_log = SyncLog.objects.create(
             user=request.user,
-            backup_created=stats['backup_created'],
-            backup_path=stats.get('backup_path', ''),
-            backup_message=stats.get('backup_message', ''),
             stats_json=stats,
             error_count=len(stats.get('errors', [])),
             errors_json=stats.get('errors', [])
@@ -996,9 +993,6 @@ def import_global_sync(request):
         return HttpResponse(json.dumps({
             'success': True,
             'sync_log_id': sync_log.id,
-            'backup_created': stats['backup_created'],
-            'backup_path': stats.get('backup_path', ''),
-            'backup_message': stats.get('backup_message', ''),
             'subjects_added': stats['subjects_added'],
             'subjects_updated': stats['subjects_updated'],
             'levels_added': stats['levels_added'],
@@ -1221,6 +1215,10 @@ def download_cohort_complete_zip(request, cohort_id):
     - Toutes les listes de présence par séance
     - Rapport des absences
     """
+    from datetime import datetime as dt
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    
     cohort = get_object_or_404(
         Cohort.objects.select_related('teacher', 'subject', 'level', 'academic_year'),
         id=cohort_id
@@ -1577,6 +1575,128 @@ def download_cohort_complete_zip(request, cohort_id):
         
         abs_pdf = _generate_pdf_bytes(f"Absences {cohort.name}", build_absences)
         zf.writestr("05_Rapport_Absences.pdf", abs_pdf)
+        
+        # 6. DOCUMENT INFOS COHORT - Liste étudiants + Emploi du temps
+        def build_teacher_pack(story, styles):
+            h1 = ParagraphStyle('CustomHeading1', fontSize=20, leading=26, textColor=colors.HexColor('#2C3E50'), 
+                               spaceAfter=0.5*cm, alignment=TA_CENTER, fontName='Helvetica-Bold')
+            h2 = ParagraphStyle('CustomHeading2', fontSize=12, leading=16, textColor=colors.HexColor('#34495E'), 
+                               spaceAfter=0.35*cm, fontName='Helvetica-Bold', leftIndent=0.2*cm)
+            normal = ParagraphStyle('CustomBody', fontSize=10, leading=13, textColor=colors.HexColor('#2C3E50'))
+            small = ParagraphStyle('Small', fontSize=9, leading=11, textColor=colors.HexColor('#5D6D7B'))
+            
+            # Titre principal - style asiatique sobre
+            story.append(Spacer(1, 0.2*cm))
+            title = Paragraph(f"<b>{cohort.name}</b>", h1)
+            story.append(title)
+            story.append(Spacer(1, 0.15*cm))
+            
+            # Infos classe avec dates
+            day_names = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+            start_day = day_names[cohort.start_date.weekday()]
+            end_day = day_names[cohort.end_date.weekday()]
+            info_text = f"{cohort.subject.name} · {cohort.level.name}"
+            story.append(Paragraph(info_text, small))
+            
+            date_range = f"{start_day} {cohort.start_date.strftime('%d/%m/%Y')} → {end_day} {cohort.end_date.strftime('%d/%m/%Y')}"
+            story.append(Paragraph(date_range, small))
+            story.append(Spacer(1, 0.4*cm))
+            
+            # ======= SECTION 1: EMPLOI DU TEMPS EN PREMIER =======
+            story.append(Paragraph("Emploi du temps", h2))
+            
+            if sessions.exists():
+                # Trier les séances par date
+                sorted_sessions = sorted(sessions, key=lambda s: (s.date, s.start_time))
+                
+                # Table planning (SANS colonne Statut)
+                schedule_data = [["Date", "Jour", "Horaire", "Salle", "Durée"]]
+                
+                for session in sorted_sessions:
+                    date_str = session.date.strftime('%d/%m/%Y')
+                    day_str = day_names[session.date.weekday()]
+                    time_str = f"{session.start_time.strftime('%H:%M')} - {session.end_time.strftime('%H:%M')}"
+                    duration_min = session.actual_minutes
+                    duration_str = f"{int(duration_min // 60)}h{int(duration_min % 60):02d}" if duration_min else "—"
+                    room_str = session.classroom.name if session.classroom else "—"
+                    
+                    schedule_data.append([
+                        date_str,
+                        day_str[:3],
+                        time_str,
+                        room_str,
+                        duration_str
+                    ])
+                
+                # Largeurs pour portrait (A4: ~19.5cm)
+                schedule_table = Table(schedule_data, colWidths=[2*cm, 1.3*cm, 2.3*cm, 2*cm, 1.4*cm], repeatRows=1)
+                schedule_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#2C3E50')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 9),
+                    ('FONTSIZE', (0,1), (-1,-1), 9),
+                    ('ROWHEIGHTS', (0,0), (-1,0), 0.5*cm),
+                    ('ROWHEIGHTS', (0,1), (-1,-1), 0.45*cm),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#BDC3C7')),
+                    ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('LEFTPADDING', (0,0), (-1,-1), 0.15*cm),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 0.15*cm),
+                    # Alternance de couleurs pour lisibilité
+                    ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F8F9FA')),
+                ]))
+                
+                # Appliquer couleur alternée correctement
+                for i in range(1, len(schedule_data)):
+                    if i % 2 == 0:
+                        schedule_table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.HexColor('#F8F9FA'))]))
+                    else:
+                        schedule_table.setStyle(TableStyle([('BACKGROUND', (0,i), (-1,i), colors.white)]))
+                
+                story.append(schedule_table)
+            else:
+                story.append(Paragraph("<i>Aucune séance planifiée.</i>", normal))
+            
+            story.append(Spacer(1, 0.5*cm))
+            
+            # ======= SECTION 2: LISTE ÉTUDIANTS =======
+            story.append(Paragraph("Étudiants", h2))
+            
+            if enrollments.exists():
+                # Table simple et épurée
+                student_data = [["N°", "Nom", "Téléphone", "Email"]]
+                for i, enr in enumerate(enrollments, 1):
+                    student_data.append([
+                        str(i),
+                        f"{enr.student.last_name.upper()} {enr.student.first_name.capitalize()}",
+                        enr.student.phone or "—",
+                        enr.student.email or "—"
+                    ])
+                
+                student_table = Table(student_data, colWidths=[0.8*cm, 3.5*cm, 3.5*cm, 3.7*cm], repeatRows=1)
+                student_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#ECF0F1')),
+                    ('TEXTCOLOR', (0,0), (-1,0), colors.HexColor('#2C3E50')),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0,0), (-1,0), 8.5),
+                    ('FONTSIZE', (0,0), (-1,-1), 8),
+                    ('ROWHEIGHTS', (0,0), (-1,0), 0.5*cm),
+                    ('ROWHEIGHTS', (0,1), (-1,-1), 0.4*cm),
+                    ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#BDC3C7')),
+                    ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('LEFTPADDING', (0,0), (-1,-1), 0.15*cm),
+                    ('RIGHTPADDING', (0,0), (-1,-1), 0.15*cm),
+                ]))
+                story.append(student_table)
+            else:
+                story.append(Paragraph("<i>Aucun étudiant inscrit.</i>", normal))
+            
+            story.append(Spacer(1, 0.3*cm))
+        
+        teacher_pdf = _generate_pdf_bytes(f"Informations {cohort.name}", build_teacher_pack, pagesize=A4)
+        zf.writestr(f"06_Informations_{cohort.name.replace(' ', '_')}.pdf", teacher_pdf)
     
     zip_buffer.seek(0)
     response = HttpResponse(zip_buffer.read(), content_type='application/zip')
@@ -1860,3 +1980,230 @@ def download_all_cohorts_payment_report(request):
     encoded_filename = quote(filename)
     response['Content-Disposition'] = f'attachment; filename="{filename}"; filename*=UTF-8\'\'{encoded_filename}'
     return response
+
+# ============================================================================
+# GESTION DES DOCUMENTS POUR LES PROFESSEURS
+# ============================================================================
+
+@login_required
+def teachers_list(request):
+    """Liste tous les profs (Users avec is_teacher=True) avec lien de téléchargement."""
+    from core.models import User
+    
+    teachers = User.objects.filter(is_teacher=True).order_by('first_name', 'last_name')
+    
+    context = {
+        'teachers': teachers,
+    }
+    return render(request, 'documents/teachers_list.html', context)
+
+
+@login_required
+def download_teacher_document(request, teacher_id):
+    """Télécharge le document complet d'un prof avec tous ses groupes et étudiants."""
+    from core.models import User
+    
+    teacher = get_object_or_404(User, id=teacher_id, is_teacher=True)
+    
+    # Récupérer tous les cohorts du prof (pas de filtre is_active car ce champ n'existe pas)
+    cohorts = Cohort.objects.filter(teacher=teacher).order_by('start_date')
+    
+    # Génération du PDF
+    pdf_bytes = _generate_teacher_complete_document(teacher, cohorts)
+    
+    # Retourner le PDF en download
+    filename = f"Emploi_du_temps_{teacher.first_name}_{teacher.last_name}.pdf"
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+def _generate_teacher_complete_document(teacher, cohorts):
+    """
+    Génère un PDF complet avec :
+    1. L'emploi du temps global du prof (toutes ses séances)
+    2. Pour chaque groupe : la liste des étudiants
+    """
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    from reportlab.platypus import PageBreak
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=1*cm, bottomMargin=1*cm,
+                           leftMargin=1*cm, rightMargin=1*cm)
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#2C3E50'),
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        fontName='Helvetica-Bold'
+    )
+    
+    section_style = ParagraphStyle(
+        'SectionTitle',
+        parent=styles['Heading2'],
+        fontSize=14,
+        textColor=colors.HexColor('#2C3E50'),
+        spaceAfter=12,
+        spaceBefore=12,
+        fontName='Helvetica-Bold'
+    )
+    
+    subsection_style = ParagraphStyle(
+        'SubsectionTitle',
+        parent=styles['Heading3'],
+        fontSize=12,
+        textColor=colors.HexColor('#2C3E50'),
+        spaceAfter=8,
+        spaceBefore=8,
+        fontName='Helvetica-Bold'
+    )
+    
+    normal_style = ParagraphStyle(
+        'Normal',
+        parent=styles['Normal'],
+        fontSize=10,
+        leading=12
+    )
+    
+    elements = []
+    
+    # === TITRE GLOBAL ===
+    title = Paragraph(f"Emploi du temps complet<br/>Professeur: {teacher.first_name} {teacher.last_name}", title_style)
+    elements.append(title)
+    elements.append(Spacer(1, 0.3*cm))
+    
+    # === SECTION 1 : EMPLOI DU TEMPS GLOBAL ===
+    all_sessions_title = Paragraph("Emploi du temps - Toutes les séances", section_style)
+    elements.append(all_sessions_title)
+    elements.append(Spacer(1, 0.15*cm))
+    
+    # Récupérer toutes les séances du prof (de tous les cohorts)
+    all_sessions = CourseSession.objects.filter(teacher=teacher).select_related('cohort', 'classroom').order_by('date', 'start_time')
+    
+    if all_sessions.exists():
+        table_data = [['Date', 'Jour', 'Horaire', 'Groupe', 'Salle', 'Durée']]
+        
+        for session in all_sessions:
+            date_str = session.date.strftime('%d/%m/%Y')
+            day_name = _get_french_day_name(session.date)
+            time_str = f"{session.start_time.strftime('%H:%M')} - {session.end_time.strftime('%H:%M')}"
+            # Utiliser Paragraph pour permettre le wrapping du texte long
+            cohort_para = Paragraph(session.cohort.name, ParagraphStyle(
+                'CohortName',
+                parent=normal_style,
+                fontSize=8,
+                alignment=TA_LEFT
+            ))
+            room = session.classroom.name if session.classroom else 'N/A'
+            
+            # Calculer la durée en heures
+            from datetime import datetime, time
+            duration_minutes = session.actual_minutes
+            duration_hours = duration_minutes / 60
+            duration_str = f"{duration_hours:.1f}h"
+            
+            table_data.append([date_str, day_name, time_str, cohort_para, room, duration_str])
+        
+        # Style du tableau
+        table = Table(table_data, colWidths=[1.5*cm, 1.6*cm, 2*cm, 4.2*cm, 1.2*cm, 1*cm])
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C3E50')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+        ]))
+        elements.append(table)
+    else:
+        elements.append(Paragraph("Aucune séance enregistrée.", normal_style))
+    
+    elements.append(Spacer(1, 0.5*cm))
+    
+    # === SECTION 2 : PAR COHORT - LISTE DES ÉTUDIANTS ===
+    
+    for cohort in cohorts:
+        # Titre du cohort
+        cohort_title = Paragraph(f"Groupe: {cohort.name}", section_style)
+        elements.append(cohort_title)
+        elements.append(Spacer(1, 0.1*cm))
+        
+        # Sous-titre : dates et séances
+        cohort_info = Paragraph(
+            f"<i>Du {cohort.start_date.strftime('%d/%m/%Y')} au {cohort.end_date.strftime('%d/%m/%Y')} • "
+            f"{cohort.sessions.count()} séances</i>",
+            normal_style
+        )
+        elements.append(cohort_info)
+        elements.append(Spacer(1, 0.15*cm))
+        
+        # Liste des étudiants du cohort
+        from students.models import Enrollment
+        enrollments = Enrollment.objects.filter(cohort=cohort).select_related('student').order_by('student__first_name', 'student__last_name')
+        
+        if enrollments.exists():
+            student_data = [['N°', 'Nom', 'Téléphone', 'Email']]
+            
+            for idx, enrollment in enumerate(enrollments, 1):
+                student = enrollment.student
+                # Utiliser Paragraph pour les emails pour permettre le wrapping
+                email_para = Paragraph(student.email or '—', ParagraphStyle(
+                    'EmailText',
+                    parent=normal_style,
+                    fontSize=8,
+                    alignment=TA_LEFT
+                )) if student.email else '—'
+                student_data.append([
+                    str(idx),
+                    f"{student.first_name} {student.last_name}",
+                    student.phone or '—',
+                    email_para
+                ])
+            
+            student_table = Table(student_data, colWidths=[0.6*cm, 3.8*cm, 2.2*cm, 3.9*cm])
+            student_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C3E50')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (0, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F8F9FA')]),
+            ]))
+            elements.append(student_table)
+        else:
+            elements.append(Paragraph("<i>Aucun étudiant enregistré pour ce groupe.</i>", normal_style))
+        
+        elements.append(PageBreak())
+    
+    # Générer le PDF
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+def _get_french_day_name(date_obj):
+    """Retourne le nom du jour en français."""
+    days = {
+        0: 'Lundi',
+        1: 'Mardi',
+        2: 'Mercredi',
+        3: 'Jeudi',
+        4: 'Vendredi',
+        5: 'Samedi',
+        6: 'Dimanche'
+    }
+    return days.get(date_obj.weekday(), '')

@@ -1,0 +1,95 @@
+<!-- Template du résultat final de la sauvegarde -->
+<div hx-target="this" hx-swap="outerHTML" class="fixed bottom-4 right-4 bg-white rounded-lg shadow-xl p-6 w-96 z-50">
+    {% if backup_state.status == 'completed' %}
+        <!-- Succès -->
+        <h3 class="text-lg font-semibold text-green-600 mb-4">✅ Sauvegarde Complète</h3>
+        
+        <div class="bg-green-50 border border-green-200 rounded p-4 mb-4">
+            <p class="text-sm text-gray-700 mb-2">
+                <strong>Nom du fichier:</strong><br>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">{{ backup_state.backup_name }}</code>
+            </p>
+            
+            <p class="text-sm text-gray-700 mb-2">
+                <strong>Taille:</strong> {{ backup_state.backup_size }}
+            </p>
+            
+            <p class="text-sm text-gray-700">
+                <strong>Localisation:</strong><br>
+                <code class="text-xs bg-gray-100 px-2 py-1 rounded">OneDrive\Torii-management\backups</code>
+            </p>
+        </div>
+        
+        <p class="text-xs text-gray-500 mb-3">Cette notification disparaîtra automatiquement...</p>
+        
+        <button 
+            hx-post="{% url 'backup_start' %}"
+            hx-target="this"
+            hx-swap="outerHTML"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition">
+            🔄 Nouvelle Sauvegarde
+        </button>
+    
+    {% elif backup_state.status == 'failed' %}
+        <!-- Erreur -->
+        <h3 class="text-lg font-semibold text-red-600 mb-4">❌ Erreur de Sauvegarde</h3>
+        
+        <div class="bg-red-50 border border-red-200 rounded p-4 mb-4">
+            <p class="text-sm text-red-800">
+                {{ backup_state.error }}
+            </p>
+        </div>
+        
+        <button 
+            hx-post="{% url 'backup_start' %}"
+            hx-target="this"
+            hx-swap="outerHTML"
+            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition">
+            🔄 Réessayer
+        </button>
+    
+    {% else %}
+        <!-- État initial -->
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">💾 Sauvegarde</h3>
+        <p class="text-sm text-gray-600 mb-4">Appuyez sur le bouton pour démarrer une sauvegarde</p>
+        
+        <button 
+            hx-post="{% url 'backup_start' %}"
+            hx-target="this"
+            hx-swap="outerHTML"
+            class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded transition">
+            🔄 Démarrer Sauvegarde
+        </button>
+    {% endif %}
+</div>
+
+<!-- Script pour auto-dismiss -->
+<script>
+    document.addEventListener('htmx:afterSettle', function(evt) {
+        // Si la sauvegarde est complétée, disparaître après 8 secondes
+        if (document.querySelector('.bg-green-50')) {
+            setTimeout(() => {
+                const elem = document.querySelector('[hx-swap="outerHTML"]');
+                if (elem) elem.remove();
+            }, 8000);
+        }
+    });
+</script>
+
+<style>
+    /* Animation fade-in */
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .fixed {
+        animation: fadeIn 0.3s ease-out;
+    }
+</style>

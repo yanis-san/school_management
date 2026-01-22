@@ -141,17 +141,6 @@ STATICFILES_DIRS = [BASE_DIR / 'static']
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
-# Backups: default target directory (OneDrive sync folder on Windows)
-from os import environ
-BACKUP_DIR = Path(environ.get(
-    'BACKUP_DIR',
-    r"C:\Users\Social Media Manager\OneDrive\Torii-management"
-))
-
-# PostgreSQL tools paths (for backup/restore commands on Windows)
-PG_DUMP_PATH = environ.get('PG_DUMP_PATH', r"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe")
-PSQL_PATH = environ.get('PSQL_PATH', r"C:\Program Files\PostgreSQL\18\bin\psql.exe")
-
 # Authentication settings
 LOGIN_URL = 'login'
 LOGIN_REDIRECT_URL = 'dashboard'

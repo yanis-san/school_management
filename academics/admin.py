@@ -20,14 +20,15 @@ class CourseSessionInline(admin.TabularInline):
 
 @admin.register(Cohort)
 class CohortAdmin(admin.ModelAdmin):
-    list_display = ('name', 'subject', 'level', 'teacher', 'modality', 'is_individual', 'start_date', 'end_date', 'schedule_generated')
+    list_display = ('name', 'abbreviation', 'subject', 'level', 'teacher', 'modality', 'is_individual', 'start_date', 'end_date', 'schedule_generated')
     list_filter = ('academic_year', 'subject', 'level', 'teacher', 'modality', 'is_individual')
+    search_fields = ('abbreviation', 'name', 'subject__name')
     inlines = [WeeklyScheduleInline, CourseSessionInline]
     actions = ['force_schedule_generation']
     
     fieldsets = (
         ('ℹ️ Informations Générales', {
-            'fields': ('subject', 'level', 'teacher', 'academic_year', 'substitute_teachers')
+            'fields': ('abbreviation', 'subject', 'level', 'teacher', 'academic_year', 'substitute_teachers')
         }),
         ('📅 Dates', {
             'fields': ('start_date', 'end_date')
@@ -48,6 +49,8 @@ class CohortAdmin(admin.ModelAdmin):
             'classes': ('collapse',),
         }),
     )
+    
+    readonly_fields = ('abbreviation',)
 
     def force_schedule_generation(self, request, queryset):
         # Action manuelle au cas où

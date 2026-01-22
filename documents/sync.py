@@ -286,68 +286,8 @@ class GlobalSyncManager:
     """
     Gère la synchronisation COMPLÈTE de TOUTE la base de données.
     Exporte/Importe: Students, Cohorts, Sessions, Enrollments, Presences, Paiements, Tarifs, Réductions, Matières, Niveaux, etc.
-    RÈGLE: UPDATE uniquement, JAMAIS supprimer. Compare timestamps. Sauvegarde auto avant import.
+    RÈGLE: UPDATE uniquement, JAMAIS supprimer. Compare timestamps.
     """
-    
-    @staticmethod
-    def create_backup():
-        """
-        Crée une sauvegarde PostgreSQL automatique avant import.
-        Retourne: (success: bool, backup_path: str, message: str)
-        """
-        from django.conf import settings
-        
-        try:
-            db_config = settings.DATABASES['default']
-            db_name = db_config['NAME']
-            db_user = db_config['USER']
-            db_password = db_config['PASSWORD']
-            db_host = db_config['HOST']
-            db_port = db_config['PORT']
-            
-            # Dossier backups
-            backup_dir = settings.BASE_DIR / 'backups_local' / 'auto_sync_backups'
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Nom du fichier
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_file = backup_dir / f'pre_sync_backup_{timestamp}.sql'
-            
-            # Commande pg_dump
-            pg_dump_path = r"C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
-            
-            # Variables d'environnement pour le mot de passe
-            env = os.environ.copy()
-            env['PGPASSWORD'] = db_password
-            
-            cmd = [
-                pg_dump_path,
-                '-h', db_host,
-                '-p', str(db_port),
-                '-U', db_user,
-                '-F', 'c',  # Format custom (compressé)
-                '-b',  # Include blobs
-                '-v',  # Verbose
-                '-f', str(backup_file),
-                db_name
-            ]
-            
-            result = subprocess.run(
-                cmd,
-                env=env,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minutes max
-            )
-            
-            if result.returncode == 0:
-                file_size = backup_file.stat().st_size / (1024 * 1024)  # MB
-                return True, str(backup_file), f"✅ Sauvegarde créée: {file_size:.2f} MB"
-            else:
-                return False, "", f"❌ Erreur pg_dump: {result.stderr}"
-        
-        except Exception as e:
-            return False, "", f"❌ Erreur sauvegarde: {str(e)}"
     
     @staticmethod
     def export_global_sync_zip():
@@ -653,22 +593,18 @@ class GlobalSyncManager:
         """
         Importe et synchronise TOUTES les données depuis un ZIP global.
         ÉTAPES:
-        1. Sauvegarde automatique de la DB PostgreSQL
-        2. Import des données (subjects, levels, tariffs, discounts, students, cohorts, etc.)
-        3. Log d'historique
+        1. Import des données (subjects, levels, tariffs, discounts, students, cohorts, etc.)
+        2. Log d'historique
         RÈGLE: UPDATE uniquement, JAMAIS supprimer. Compare timestamps (last-write-wins).
         
         Returns:
-            dict avec statistiques d'import détaillées + info sauvegarde
+            dict avec statistiques d'import détaillées
         """
         from zipfile import ZipFile
         from django.db import transaction
         from students.models import Tariff, Enrollment
         
         stats = {
-            'backup_created': False,
-            'backup_path': '',
-            'backup_message': '',
             'subjects_added': 0,
             'subjects_updated': 0,
             'levels_added': 0,
@@ -696,16 +632,7 @@ class GlobalSyncManager:
             'errors': []
         }
         
-        # ÉTAPE 1: SAUVEGARDE AUTOMATIQUE
-        backup_success, backup_path, backup_msg = GlobalSyncManager.create_backup()
-        stats['backup_created'] = backup_success
-        stats['backup_path'] = backup_path
-        stats['backup_message'] = backup_msg
-        
-        if not backup_success:
-            stats['errors'].append(f"⚠️ ATTENTION: Sauvegarde échouée - {backup_msg}")
-        
-        # ÉTAPE 2: IMPORT DES DONNÉES
+        # ÉTAPE 1: IMPORT DES DONNÉES
         try:
             with ZipFile(zip_file, 'r') as zip_ref:
                 
