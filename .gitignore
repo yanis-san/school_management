@@ -2,7 +2,7 @@
 .env
 .env.local
 .env.*.local
-.claude
+
 # Python
 __pycache__/
 *.py[cod]
@@ -29,6 +29,7 @@ wheels/
 venv/
 ENV/
 env/
+.venv/
 
 # IDE
 .vscode/
@@ -37,6 +38,7 @@ env/
 *.swo
 *~
 .DS_Store
+.claude/
 
 # Database
 db.sqlite3
@@ -56,3 +58,8 @@ media/
 # OS
 .DS_Store
 Thumbs.db
+
+# Backup files
+*.bak
+*.sql
+db_postgres_*.sql
